@@ -1,0 +1,93 @@
+{
+  "_args": [
+    [
+      {
+        "raw": "hexo-theme-simpleblock",
+        "scope": null,
+        "escapedName": "hexo-theme-simpleblock",
+        "name": "hexo-theme-simpleblock",
+        "rawSpec": "",
+        "spec": "latest",
+        "type": "tag"
+      },
+      "/Users/kewei/Documents/hexo"
+    ]
+  ],
+  "_from": "hexo-theme-simpleblock@latest",
+  "_id": "hexo-theme-simpleblock@0.2.1",
+  "_inCache": true,
+  "_location": "/hexo-theme-simpleblock",
+  "_nodeVersion": "6.6.0",
+  "_npmOperationalInternal": {
+    "host": "packages-12-west.internal.npmjs.com",
+    "tmp": "tmp/hexo-theme-simpleblock-0.2.1.tgz_1478771781807_0.6093335766345263"
+  },
+  "_npmUser": {
+    "name": "jysperm",
+    "email": "jysperm@gmail.com"
+  },
+  "_npmVersion": "3.10.3",
+  "_phantomChildren": {},
+  "_requested": {
+    "raw": "hexo-theme-simpleblock",
+    "scope": null,
+    "escapedName": "hexo-theme-simpleblock",
+    "name": "hexo-theme-simpleblock",
+    "rawSpec": "",
+    "spec": "latest",
+    "type": "tag"
+  },
+  "_requiredBy": [
+    "#USER"
+  ],
+  "_resolved": "https://registry.npmjs.org/hexo-theme-simpleblock/-/hexo-theme-simpleblock-0.2.1.tgz",
+  "_shasum": "a6922dfba7782be566250094bf67dcaa5efd8b05",
+  "_shrinkwrap": null,
+  "_spec": "hexo-theme-simpleblock",
+  "_where": "/Users/kewei/Documents/hexo",
+  "bugs": {
+    "url": "https://github.com/jysperm/hexo-theme-simpleblock/issues"
+  },
+  "contributors": [
+    {
+      "name": "jysperm",
+      "email": "jysperm@gmail.com",
+      "url": "https://jysperm.me"
+    }
+  ],
+  "dependencies": {},
+  "description": "A simple theme for Hexo.",
+  "devDependencies": {
+    "bower": "1.4.1",
+    "gulp": "3.8.10",
+    "gulp-add-src": "0.2.0",
+    "gulp-concat": "2.4.3",
+    "gulp-less": "2.0.1",
+    "gulp-minify-css": "0.4.2",
+    "gulp-order": "1.1.1",
+    "gulp-sass": "2.0.4",
+    "main-bower-files": "2.5.0"
+  },
+  "directories": {},
+  "dist": {
+    "shasum": "a6922dfba7782be566250094bf67dcaa5efd8b05",
+    "tarball": "https://registry.npmjs.org/hexo-theme-simpleblock/-/hexo-theme-simpleblock-0.2.1.tgz"
+  },
+  "homepage": "https://jysperm.me",
+  "license": "MIT",
+  "maintainers": [
+    {
+      "name": "jysperm",
+      "email": "jysperm@gmail.com"
+    }
+  ],
+  "name": "hexo-theme-simpleblock",
+  "optionalDependencies": {},
+  "readme": "ERROR: No README data found!",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jysperm/hexo-theme-simpleblock.git"
+  },
+  "scripts": {},
+  "version": "0.2.1"
+}
