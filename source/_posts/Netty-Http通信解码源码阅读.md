@@ -3,7 +3,7 @@ title: Netty Http通信解码源码阅读
 date: 2018-04-16 00:06:17
 tags:
 ---
-首先1给出一个http server pipiLine里面的处理器的组成结构的示例:
+首先给出一个http server pipiLine里面的处理器的组成结构的示例:
 ```
         @Override
         protected void initChannel(Channel ch) throws Exception {
@@ -19,7 +19,7 @@ tags:
             ch.pipeline().addLast("handler", requestHandler);
         }
 ```
-其中只有HttpRequestDecoder属于ByteToMessageDecoder类型, 主要作用是从byte中拼接处每一个帧, 其余处理器大部分是根据自定义的语义对这个帧转化, 本文将以示例中的所有handler为处理器, 以POST请求解析过程为串分析下去。
+其中只有HttpRequestDecoder属于ByteToMessageDecoder类型, 主要作用是从byte中拼接处每一个帧, 其余处理器大部分是根据自定义的语义对这个帧转化, 本文将以示例中的重要的handler为处理器, 以POST请求解析过程为串分析下去。
 http处理方式是每次将缓冲池放满(默认65536个), 然后将65536个字符按照虚拟的chunk分片(默认一个HttpChunk 8192个字符),通过handler, 最后在HttpObjectAggregator聚合, 然后发向后面。
 这里有一个问题:
 `为什么不将65536个字符一下发送到最终handler, 而需要先分解成虚拟的chunked, 一个一个发送到后面再聚合起来?`
@@ -238,7 +238,7 @@ private static boolean skipControlCharacters(ByteBuf buffer) {
         return skiped;
     }
 ```
-并将动作设置为READ_INITIAL, 表示接下来将要读取initial部分。首先读取当前字母, 发现符合要求, 再复位当前读指针
+首先读取当前字母, 若发现符合要求, 再复位当前读指针。 并将动作设置为READ_INITIAL, 表示接下来将要读取initial部分。
 2) 读取INITIAL部分
 从当前节点开始读取字符,直到读取分割符号为HttpConstants.LF(换行符), 该部分将解析出如下信息:`GET /_cat/indices HTTP/1.1`, 创建对象:DefaultHttpRequest, 其中
 ```
@@ -246,8 +246,7 @@ httpVersion: HTTP/1.1
 method: GET
 uri: /_cat/indices
 ```
-然后将状态位置为READ_HEADER, 表示即将读取header部分。
-这个DefaultHttpRequest在HttpObjectDecoder中生成, 作为这个请求的头部分
+这个DefaultHttpRequest在HttpObjectDecoder中生成, 作为最终的这个请求的头部分。然后将状态位置为READ_HEADER, 表示即将读取header部分。
 3) 读取Headers部分
 ```
 private State readHeaders(ByteBuf buffer) {
@@ -322,8 +321,11 @@ private State readHeaders(ByteBuf buffer) {
 正确情况下，收到请求后，返回 100 或错误码。
 如果在发送 100-continue 前收到了 post 数据（客户端提前发送 post 数据），则不发送 100 响应码(略去)。
 
-+ 因为header中包含Content-Length, 说明需要接着读取一个定长为66735的一个帧, 设置状态为READ_FIXED_LENGTH_CONTENT
-4) chunkSize = Content-Length,  并且将解析出来的DefaultHttpRequest向后传递。
++ 如上因为header中包含Content-Length, 说明接下来需要读取定长为66735的一个帧。
+这里会设置状态为READ_FIXED_LENGTH_CONTENT
+4)  读取内容
+因为header读取完成之后, 将nextState设置成了READ_FIXED_LENGTH_CONTENT, 那么会连续接收并读取chunkSize长度的byte。这里有个设置, 我们设置了maxChunkSize, 意味着每次读取的chunked的长度必须<Math.min(readableLength, maxChunkSize), 每读取maxChunkSize长度的值就向后传递, 同时修改chunkSize的值。读取第二个chunked的动作在MessageToMessageDecoder中发出(该content的readableBytes>0)。
+这里对于maxChunkSize的限制不甚理解, 既然已经读取到readableLength长度的值, 为啥还需要再次分割每个chunked为maxChunkSize。
 # HttpObjectAggregator和 MessageAggregator
 HttpObjectAggregator主要是将HttpRequest和HttpContent合并成FullHttpRequest, 继承自MessageAggregator。
 MessageAggregator实现了decode()函数, 继承了MessageToMessageDecoder(很熟悉), 主要实现如下:
@@ -441,7 +443,7 @@ MessageAggregator实现了decode()函数, 继承了MessageToMessageDecoder(很�
                 finishAggregation(currentMessage);
 
                 // All done
-                out.add(currentMessage); //把结果放进来意味着继续向下一个处理器发送，否则就直接接受下一个chunked。
+                out.add(currentMessage); //把结果放进来意味着继续向下一个处理器发送，否则就直接接收下一个chunked。
                 currentMessage = null;
             }
         } else {
@@ -450,24 +452,18 @@ MessageAggregator实现了decode()函数, 继承了MessageToMessageDecoder(很�
     }
 ```
 decode函数主要检查该解析请求是否是HttpRequest或者HttpContent, 否则直接返回异常。
-1) HttpRequest部分
+1) 若请求是HttpRequest
+说明该部分是request最开始的那一部分。
 + 首先检查是否请求中是否包含Expect: 100-continue(在newContinueResponse中检查), 若包含有, 服务器需要向客户端发送可以发送content的response, response中content为空。
 + 生成CompositeByteBuf, 准备存放即将到来的HttpChunk; 生成AggregatedFullHttpRequest, 将CompositeByteBuf和DefaultHttpRequest包含其中。
+需要简单介绍下CompositeByteBuf, 通过名字也可以看出, 他是一个复合型的ByteBuf, 它并不是真实的, 它主要由属性`List<Component> components`构成, 每新来一个ByteBuf, 都会添加到components中。 CompositeByteBuf也有自己的writerIndex和readIndex, 表示整个CompositeByteBuf最大可读和最大可写偏移量。
 
-需要简单介绍下CompositeByteBuf, 通过名字也可以看出, 他是一个复合型的ByteBuf, 它并不是真实的, 它主要由属性`List<Component> components`构成, 每新来一个ByteBuf, 都会添加到components中, 他也有自己的writerIndex和readIndex, 表示整个components最大可读和最大可写偏移量。
-conponent添加的过程如下:
+2) 若请求是HttpContent部分
++ 将content添加进CompositeByteBuf中
+通过appendPartialContent()添加, conponent添加进CompositeByteBuf的过程如下:
 ```
-private int addComponent0(boolean increaseWriterIndex, int cIndex, ByteBuf buffer) {
-        assert buffer != null;
-        boolean wasAdded = false;
-        try {
-            checkComponentIndex(cIndex);
-
-            int readableBytes = buffer.readableBytes();
-
-            // No need to consolidate - just add a component to the list.
-            @SuppressWarnings("deprecation")
-            Component c = new Component(buffer.order(ByteOrder.BIG_ENDIAN).slice());
+     private int addComponent0(boolean increaseWriterIndex, int cIndex, ByteBuf buffer) {
+            .....
             if (cIndex == components.size()) {
                 wasAdded = components.add(c);
                 if (cIndex == 0) {
@@ -477,22 +473,27 @@ private int addComponent0(boolean increaseWriterIndex, int cIndex, ByteBuf buffe
                     c.offset = prev.endOffset;
                     c.endOffset = c.offset + readableBytes;
                 }
-            } else {
-                components.add(cIndex, c);
-                wasAdded = true;
-                if (readableBytes != 0) {
-                    updateComponentOffsets(cIndex);
-                }
             }
+            .....
             if (increaseWriterIndex) {
                 writerIndex(writerIndex() + buffer.readableBytes());
             }
             return cIndex;
-        } finally {
-            if (!wasAdded) {
-                buffer.release();
-            }
         }
     }
 ```
-2) HttpContent部分
+每个Component结构如下:
+```
+        ByteBuf buf;  //该Component实际存储
+        final int length;
+        int offset; 标记该Component占CompositeByte所有Component byte的起始偏移位置。
+        int endOffset;  //标记该Component占CompositeByte所有Component byte的最终偏移位置。
+```
+在添加的时候, curr.offset = pre.endOffset,curr.endOffset = pre.offset+ readLength, 这样每个Component offset和endOffset指针首位相连。
+
++ 等待所有的content发送过来
+1. 轮训等待所有的部分content发送过来, 封装成Component放进CompositeByte中。
+2. 直到检测到content为最后一个content(类型为LastHttpContent), 则将CompositeByte放入out中继续向里面传递。
+
+至此,一个完整地AggregatedFullHttpRequest已经解析出来了,组成如下:
+<img src="http://owqu66xvx.bkt.clouddn.com/DefaultLastHttpContent.png" />
