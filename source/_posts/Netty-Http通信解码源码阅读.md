@@ -3,7 +3,7 @@ title: Netty Http通信解码源码阅读
 date: 2018-04-16 00:06:17
 tags:
 ---
-首先给出一个http server pipiLine里面的处理器的组成结构的示例:
+首先1给出一个http server pipiLine里面的处理器的组成结构的示例:
 ```
         @Override
         protected void initChannel(Channel ch) throws Exception {

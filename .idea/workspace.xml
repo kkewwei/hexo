@@ -2,6 +2,16 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="7c88cf5c-44c0-48f6-9477-df34fe45af18" name="Default" comment="">
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.deploy_git" afterPath="$PROJECT_DIR$/.deploy_git" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/themes/Anisina" afterPath="$PROJECT_DIR$/themes/Anisina" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/themes/snippet" afterPath="$PROJECT_DIR$/themes/snippet" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/themes/yilia" afterPath="$PROJECT_DIR$/themes/yilia" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/misc.xml" afterPath="$PROJECT_DIR$/.idea/misc.xml" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/db.json" afterPath="$PROJECT_DIR$/db.json" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/public/2018/04/16/Netty-Http通信解码源码阅读/index.html" afterPath="$PROJECT_DIR$/public/2018/04/16/Netty-Http通信解码源码阅读/index.html" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/public/index.html" afterPath="$PROJECT_DIR$/public/index.html" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/source/_posts/Netty-Http通信解码源码阅读.md" afterPath="$PROJECT_DIR$/source/_posts/Netty-Http通信解码源码阅读.md" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/themes/Anisina/_config.yml" afterPath="$PROJECT_DIR$/themes/Anisina/_config.yml" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/themes/snippet/layout/_partial/copyright.ejs" afterPath="$PROJECT_DIR$/themes/snippet/layout/_partial/copyright.ejs" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/themes/yilia/_config.yml" afterPath="$PROJECT_DIR$/themes/yilia/_config.yml" />
@@ -9,6 +19,7 @@
     </list>
     <ignored path="hexo1.iws" />
     <ignored path=".idea/workspace.xml" />
+    <ignored path=".idea/dataSources.local.xml" />
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="TRACKING_ENABLED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -24,8 +35,54 @@
   <component name="FavoritesManager">
     <favorites_list name="hexo1" />
   </component>
+  <component name="FileEditorManager">
+    <leaf>
+      <file leaf-file-name="Netty-Http通信解码源码阅读.md" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/source/_posts/Netty-Http通信解码源码阅读.md">
+          <provider editor-type-id="split-provider[text-editor;markdown-preview-editor]">
+            <state split_layout="SPLIT">
+              <first_editor relative-caret-position="0">
+                <caret line="0" column="0" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+                <folding />
+              </first_editor>
+              <second_editor />
+            </state>
+          </provider>
+          <provider selected="true" editor-type-id="split-provider[text-editor;MarkdownPreviewEditor]">
+            <state split_layout="SPLIT">
+              <first_editor relative-caret-position="75">
+                <caret line="5" column="3" selection-start-line="5" selection-start-column="3" selection-end-line="5" selection-end-column="3" />
+                <folding />
+              </first_editor>
+              <second_editor>
+                <js_state />
+              </second_editor>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name=".gitignore" pinned="false" current-in-tab="true">
+        <entry file="file://$PROJECT_DIR$/.gitignore">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="15">
+              <caret line="1" column="7" selection-start-line="1" selection-start-column="7" selection-end-line="1" selection-end-column="7" />
+              <folding />
+            </state>
+          </provider>
+        </entry>
+      </file>
+    </leaf>
+  </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="IdeDocumentHistory">
+    <option name="CHANGED_PATHS">
+      <list>
+        <option value="$PROJECT_DIR$/source/_posts/Netty-Http通信解码源码阅读.md" />
+        <option value="$PROJECT_DIR$/.gitignore" />
+      </list>
+    </option>
   </component>
   <component name="JsBuildToolGruntFileManager" detection-done="true" sorting="DEFINITION_ORDER" />
   <component name="JsBuildToolPackageJson" detection-done="true" sorting="DEFINITION_ORDER" />
@@ -45,7 +102,7 @@
     <OptionsSetting value="true" id="Update" />
     <OptionsSetting value="true" id="Status" />
     <OptionsSetting value="true" id="Edit" />
-    <ConfirmationsSetting value="0" id="Add" />
+    <ConfirmationsSetting value="1" id="Add" />
     <ConfirmationsSetting value="0" id="Remove" />
   </component>
   <component name="ProjectView">
@@ -92,6 +149,7 @@
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
     <property name="settings.editor.splitter.proportion" value="0.2" />
     <property name="WebServerToolWindowFactoryState" value="false" />
+    <property name="prop_add_unversioned_files" value="true" />
   </component>
   <component name="ShelveChangesManager" show_recycled="false">
     <option name="remove_strategy" value="false" />
@@ -136,5 +194,37 @@
   <component name="XDebuggerManager">
     <breakpoint-manager />
     <watches-manager />
+  </component>
+  <component name="editorHistoryManager">
+    <entry file="file://$PROJECT_DIR$/source/_posts/Netty-Http通信解码源码阅读.md">
+      <provider editor-type-id="split-provider[text-editor;markdown-preview-editor]">
+        <state split_layout="SPLIT">
+          <first_editor relative-caret-position="0">
+            <caret line="0" column="0" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+            <folding />
+          </first_editor>
+          <second_editor />
+        </state>
+      </provider>
+      <provider selected="true" editor-type-id="split-provider[text-editor;MarkdownPreviewEditor]">
+        <state split_layout="SPLIT">
+          <first_editor relative-caret-position="75">
+            <caret line="5" column="3" selection-start-line="5" selection-start-column="3" selection-end-line="5" selection-end-column="3" />
+            <folding />
+          </first_editor>
+          <second_editor>
+            <js_state />
+          </second_editor>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/.gitignore">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="15">
+          <caret line="1" column="7" selection-start-line="1" selection-start-column="7" selection-end-line="1" selection-end-column="7" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
   </component>
 </project>
