@@ -1,5 +1,5 @@
 ---
-title: Netty Http通信解码源码一(解码)阅读
+title: Netty Http通信源码一(解码)阅读
 date: 2018-04-16 00:06:17
 tags:
 ---
@@ -321,6 +321,7 @@ private State readHeaders(ByteBuf buffer) {
 正确情况下，收到请求后，返回 100 或错误码。
 如果在发送 100-continue 前收到了 post 数据（客户端提前发送 post 数据），则不发送 100 响应码(略去)。
 
+这个参数也不是必须有的, 当content部分长度超过, 客户端才会向服务器端发送这个参数。 在terminal下面通过curl发送包含数据请求, 当数据部分长度>=1025时, 客户端发送的header里面才会有这个参数。
 + 如上因为header中包含Content-Length, 说明接下来需要读取定长为66735的一个帧。
 这里会设置状态为READ_FIXED_LENGTH_CONTENT
 4)  读取内容
@@ -454,7 +455,7 @@ MessageAggregator实现了decode()函数, 继承了MessageToMessageDecoder(很�
 decode函数主要检查该解析请求是否是HttpRequest或者HttpContent, 否则直接返回异常。
 1) 若请求是HttpRequest
 说明该部分是request最开始的那一部分。
-+ 首先检查是否请求中是否包含Expect: 100-continue(在newContinueResponse中检查), 若包含有, 服务器需要向客户端发送可以发送content的response, response中content为空。
++ 首先检查是否请求中是否包含Expect: 100-continue(在newContinueResponse中检查): 若包含有, 服务器需要向客户端发送可以发送content的response, response中content为空; 反之, 说明不用向客户端发送continue的回复。
 + 生成CompositeByteBuf, 准备存放即将到来的HttpChunk; 生成AggregatedFullHttpRequest, 将CompositeByteBuf和DefaultHttpRequest包含其中。
 需要简单介绍下CompositeByteBuf, 通过名字也可以看出, 他是一个复合型的ByteBuf, 它并不是真实的, 它主要由属性`List<Component> components`构成, 每新来一个ByteBuf, 都会添加到components中。 CompositeByteBuf也有自己的writerIndex和readIndex, 表示整个CompositeByteBuf最大可读和最大可写偏移量。
 
@@ -497,3 +498,6 @@ decode函数主要检查该解析请求是否是HttpRequest或者HttpContent, �
 
 至此,一个完整地AggregatedFullHttpRequest已经解析出来了,组成如下:
 <img src="http://owqu66xvx.bkt.clouddn.com/DefaultLastHttpContent.png" />
+#附
+如何将Composite转换为一个连续的堆内buf呢?
+通过Unpooled.copiedBuffer(request.content())方法即可。
