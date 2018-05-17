@@ -1,5 +1,5 @@
 ---
-title: Netty通信编解码源码解读
+title: Netty Thrift方式通信编解码源码解读
 date: 2018-03-25 11:11:12
 tags:
 ---
@@ -196,7 +196,7 @@ LengthFieldBasedFrameDecoder作为ByteToMessageDecoder的父类, 它只用定义
 + tooLongFrameLength: 超过长度限制maxFrameLength的帧长度
 + bytesToDiscard: 对于下次接收的数据中需要继续丢弃的byte长度。 当接收的帧长度大于阈值, 会丢弃该帧及内容
 关系如下:<img src="http://owsl7963b.bkt.clouddn.com/Thrift%E5%B8%A7.png"/>
-也可<a href="https://blog.csdn.net/u010853261/article/details/55803933" 参考/a>
+也可<a href="https://blog.csdn.net/u010853261/article/details/55803933"> 参考/a>
 其中:
 + head1和head2可以由用户自定义语义。
 + 有的人会想, initialBytesToStrip、lengthFieldOffset、lengthFieldLength这三个属性有一定的关系, 还为啥会当把三个参数都传递进来, 我想设计者是为了给使用者更大的灵活性,比如 lengthFieldLength后面专门空几个byte啥都不干放着也是行的, 一般initialBytesToStrip = lengthFieldOffset+lengthFieldLength

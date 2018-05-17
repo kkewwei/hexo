@@ -14,7 +14,6 @@ tags:
             final HttpObjectAggregator aggregator = new HttpObjectAggregator(Math.toIntExact(transport.maxContentLength.getBytes()));
             ch.pipeline().addLast("aggregator", aggregator);  //包的聚合
             ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(transport.compressionLevel));
-            ch.pipeline().addLast("cors", new Netty4CorsHandler(transport.getCorsConfig()));
             ch.pipeline().addLast("pipelining", new HttpPipeliningHandler(transport.logger, transport.pipeliningMaxEvents));
             ch.pipeline().addLast("handler", requestHandler);
         }
@@ -339,10 +338,8 @@ MessageAggregator实现了decode()函数, 继承了MessageToMessageDecoder(很�
                 currentMessage = null;
                 throw new MessageAggregationException();
             }
-
             @SuppressWarnings("unchecked")
             S m = (S) msg; //DefaultHttpRequest
-
             // Send the continue response if necessary (e.g. 'Expect: 100-continue' header)
             // Check before content length. Failing an expectation may result in a different response being sent.
             Object continueResponse = newContinueResponse(m, maxContentLength, ctx.pipeline());//跑到HttpObjectAggregator里面，第一次返回DefaultFullHttpResponse
@@ -359,7 +356,6 @@ MessageAggregator实现了decode()函数, 继承了MessageToMessageDecoder(很�
                         }
                     };
                 }
-
                 // Make sure to call this before writing, otherwise reference counts may be invalid.
                 boolean closeAfterWrite = closeAfterContinueResponse(continueResponse);
                 handlingOversizedMessage = ignoreContentAfterContinueResponse(continueResponse);
@@ -417,7 +413,6 @@ MessageAggregator实现了decode()函数, 继承了MessageToMessageDecoder(很�
                 invokeHandleOversizedMessage(ctx, s);
                 return;
             }
-
             // Append the content of the chunk.
             appendPartialContent(content, m.content()); //把产生的数据添加到末尾
             //
@@ -498,6 +493,6 @@ decode函数主要检查该解析请求是否是HttpRequest或者HttpContent, �
 
 至此,一个完整地AggregatedFullHttpRequest已经解析出来了,组成如下:
 <img src="http://owqu66xvx.bkt.clouddn.com/DefaultLastHttpContent.png" />
-#附
+# 附
 如何将Composite转换为一个连续的堆内buf呢?
 通过Unpooled.copiedBuffer(request.content())方法即可。
