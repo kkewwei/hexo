@@ -6,6 +6,40 @@ tags:
 解码过程仍以<a href="https://kkewwei.github.io/elasticsearch_learning/2018/04/16/Netty-Http%E9%80%9A%E4%BF%A1%E8%A7%A3%E7%A0%81%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB/">Netty Http通信源码一(解码)阅读</a>提供的示例为例, 编码发送的主体DefaultFullHttpResponse如下:
 <img src="http://owsl7963b.bkt.clouddn.com/DefaultFullHttpResponse.png" />
 涉及到的ChannelOutboundHandler类有:HttpContentCompressor、HttpObjectEncoder, 及其父类。 本wiki仍然以数据的流向作为引导线。
+开始向外发送数据时, 如下:
+```
+private void write(Object msg, boolean flush, ChannelPromise promise) {
+        AbstractChannelHandlerContext next = findContextOutbound(); //向外发送，找到一个拥有out的context
+        final Object m = pipeline.touch(msg, next);
+        EventExecutor executor = next.executor();
+        if (executor.inEventLoop()) {
+            if (flush) {
+                next.invokeWriteAndFlush(m, promise);
+            } else {
+                next.invokeWrite(m, promise);
+            }
+        } else {
+            AbstractWriteTask task;
+            if (flush) {
+                task = WriteAndFlushTask.newInstance(next, m, promise); //这个task是一个Runnable, 只需要向里面放， 后期自然会执行
+            }  else {
+                task = WriteTask.newInstance(next, m, promise);
+            }
+            safeExecute(executor, task, promise, m);
+        }
+    }
+```
+当自定义handler向外发送数据时, 走的是else部分, 此时, 会产生WriteAndFlushTask对象,  其为Runnable类, 在run函数中, 会直接调用write(), write定义如下:
+```
+        @Override
+        public void write(AbstractChannelHandlerContext ctx, Object msg, ChannelPromise promise) {
+            super.write(ctx, msg, promise); //一般只是存放在缓存中
+            ctx.invokeFlush(); //真正的调用write,
+        }
+```
+可以看出, 写数据分为两个过程:write()和flush():
++ write只是将数据放在了缓存ChannelOutboundBuffer中
++ 通过调用channal.write()向网络发送数据。
 # HttpContentCompressor及父类HttpContentEncoder、MessageToMessageCodec
 我们需要知道: MessageToMessageCodec该类是一个ChannelDuplexHandler类型的, 可以同时在IN, OUT场景下使用。
 首先进入的是MessageToMessageCodec的write()函数, 通过该函数的encoder.write(ctx, msg, promise)跳转到MessageToMessageEncoder的write()函数中, 实现如下:
@@ -347,7 +381,7 @@ DefalueChannalHadlerContext.write()函数之前的工作主要是编码部分、
                         break;
                     }
                     // fall-through!
-                case ST_CONTENT_ALWAYS_EMPTY:
+                case ST_CONTENT_ALWAYS_EMPTY: //内容为空, 最后一个帧将跳到这里
 
                     if (buf != null) {
                         // We allocated a buffer so add it now.
@@ -408,12 +442,10 @@ state初始值为ST_INIT, 该函数主要做了如下操作:
 然后根据header部分还改变state状态, 一般state会被置为ST_CONTENT_NON_CHUNK。根据MessageToMessageEncoder.write()可知, 编码完DefaultHttpResponse, 就调用DefalueChannalHadlerContext.write继续向外写, 后面会详细讲些该部分。
 2.第二、三次、四次传递过来的是DefaltHttpContent, 将进入ST_CONTENT_NON_CHUNK部分。
 + 该部分, 直接将整个DefaltHttpContent放入out向外写
-+ 当发现传递过来的Contnt为末尾标识符LastHttpContent时, 置state=ST_INIT, 等待下一个帧传递过来。
++ 当发现传递过来的Contnt为末尾标识符LastHttpContent时, contentLength为0, 此时将直接跳到ST_CONTENT_ALWAYS_EMPTY部分执行,out会添加EMPTY_BUFFER, 最终置state=ST_INIT, 等待下一个帧传递过来。
+
 
 # Netty水位
-写数据分为两个过程:write()和flush():
-+ write只是将数据放在了缓存ChannelOutboundBuffer中
-+ 通过调用channal.write()向网络发送数据。
 
 向外写的最外层为HeadContext, 其write直接调用unsafe.write(msg, promise), 实际调用的是AbstractChannel$AbstractSafeUnSafe.write(), 如下:
 ```
@@ -441,16 +473,15 @@ state初始值为ST_INIT, 该函数主要做了如下操作:
 <img src="http://owsl7963b.bkt.clouddn.com/ChannelOutboundBuffer.png" />
 flushEntry 表示即将刷新的其实位置
 unflushEntry: 每次调用addFlush()将unflushEntry赋值给flushEntry, 才算真正开始flush数据了。
-tailEntry: 当前缓存message链尾部, 新增message都是尾部追加。
-
-添加完message之后, 同时调用incrementPendingOutboundBytes(), 记录当前缓存的数据量:
+tailEntry: 当前缓存message链尾部, 新增message都是尾部追加。 我们需要知道, 尾部追加并没有限制,也就是说, netty本省并不会为我们做限制写入, 它只是负责通知我们达到内存使用水位上限了。 我们需要自己在函数中控制写入数据, 比如在发送数据时, 当且仅当channel.isWritable()为true才继续发送数据。
+把message通过尾部追加添加到输出list之后, 同时调用incrementPendingOutboundBytes(), 记录当前缓存的数据量:
 ```
         long newWriteBufferSize = TOTAL_PENDING_SIZE_UPDATER.addAndGet(this, size);////原子更新一下当前的水位，并获取最新的水位信息
         if (newWriteBufferSize > channel.config().getWriteBufferHighWaterMark()) {//如果当前的水位高于配置的高水位，那么就要调用setUnwriteable方法
             setUnwritable(invokeLater);
         }
 ```
-当然向ChannelOutboundBuffer添加content不能太快了, 否则若来不及发送的话, 都是堆积在直接内存中, 容易造成内存OOM, 这里是如何限处理存数据大小的呢?
+所以当然向ChannelOutboundBuffer添加content不能太快了, 否则若来不及发送的话, 都是堆积在直接内存中, 容易造成内存OOM, 这里是如何限处理存数据大小的呢?
 在netty启动时, 只需要添加如下参数即可:
 ```
 ServerBootstrap bootstrap = new ServerBootstrap();
@@ -458,22 +489,157 @@ bootstrap.childOption(ChannelOption.WRITE_BUFFER_HIGH_WATER_MARK, 64 * 1024);
 bootstrap.childOption(ChannelOption.WRITE_BUFFER_LOW_WATER_MARK, 32 * 1024);
 ```
 代表:
-+ 当超过高水位64kb时候, 就会调用fireChannelWritabilityChanged函数, 让上游感知, 同时Channel.isWritable()返回false。
-+ 当超过高水位之后, 又通过发送后回落到低水位时, Channel.isWritable() 将会返回true.
++ 当每个channel使用写出缓存超过高水位64kb时候, 就会调用fireChannelWritabilityChanged函数, 让上游感知, 同时Channel.isWritable()返回false。
++ 当每个channel使用写出缓存超过高水位之后, 又通过发送到网络后回落到低水位时, Channel.isWritable() 将会返回true.
 ## setUnwritable设置不可写
+
 ```
         for (;;) {
             final int oldValue = unwritable;
             final int newValue = oldValue | 1;
             if (UNWRITABLE_UPDATER.compareAndSet(this, oldValue, newValue)) {//高水位的时候就会可以通知到业务handler中的WritabilityChanged方法，并且修改buffer的状态
-                if (oldValue == 0 && newValue != 0) {//如果之前的状态是可写，现在的状态是不可写，就要调用pipeline上handerd的lWritabilityChanged方法
+                if (oldValue == 0 && newValue != 0) {
                     fireChannelWritabilityChanged(invokeLater);//
                 }//事实上，达到高水位之后，Netty仅仅会发送一个Channle状态位变更事件通知，并不会阻止用户继续发送消息.发现的确如此。
                 break;
             }
         }
 ```
-这里可以看出使用for循环, 直到将unwritable属性有0变为1(可写->不可写), 然后调用fireChannelWritabilityChanged向上层handler发送信号, 上层可以覆盖该函数, 并通过channelWritable()判断是达到水位上线还是恢复可写了。
-我们需要知道, netty本省并不会为我们做限制写入, 它只是负责通知我们达到内存使用水位上限了。 我们需要自己在函数中控制写入数据, 比如在发送数据时, 当且仅当channel.isWritable()为true才继续发送数据。
+这里可以看出使用for循环, 直到将unwritable属性有0变为1(可写->不可写), 然后调用fireChannelWritabilityChanged向上层handler发送信号。
+在自定义handler时, 可以覆盖该函数, 并通过channelWritable()判断是达到水位上限还是恢复可写了。
 
+# Flush
+数据发送到缓存之后, 就开始调用ctx.invokeFlush(),  开始从HttpPipeliningHandler》flush开始调用,  一直到HeadContext.flush(), 调用如下:
+```
+        public void flush(ChannelHandlerContext ctx) throws Exception {
+            unsafe.flush();
+        }
+```
+这样的代码是不是很熟悉, 和write部分最终调用时一样的。 调用AbstractChannel$AbstractSafeUnSafe.flush()
+```
+        @Override
+        public final void flush() {
+            assertEventLoop();
+            ChannelOutboundBuffer outboundBuffer = this.outboundBuffer;
+            if (outboundBuffer == null) {
+                return;
+            }
+            outboundBuffer.addFlush();
+            flush0();//写完了
+        }
+```
+主要做了如下事情:
++ outboundBuffer.addFlush() 仅仅将flushEntry指向缓存连第一个节点, 并将unflushedEntry置为空;
++ 调用flush0开始真正的flush, 会跳到AbstractChannel$AbstractUnsafe.flush0():
+## 内部flush0
+```
+        @SuppressWarnings("deprecation")
+        protected void flush0() {
+            if (inFlush0) { //有正在写（真正的调用write写）
+                // Avoid re-entrance
+                return;
+            }
+            final ChannelOutboundBuffer outboundBuffer = this.outboundBuffer;
+            if (outboundBuffer == null || outboundBuffer.isEmpty()) {
+                return;
+            }
+            inFlush0 = true; //标记正在写
+            // Mark all pending write requests as failure if the channel is inactive.
+            if (!isActive()) {
+                try {
+                    if (isOpen()) {
+                        outboundBuffer.failFlushed(FLUSH0_NOT_YET_CONNECTED_EXCEPTION, true);
+                    } else {
+                        // Do not trigger channelWritabilityChanged because the channel is closed already.
+                        outboundBuffer.failFlushed(FLUSH0_CLOSED_CHANNEL_EXCEPTION, false);
+                    }
+                } finally {
+                    inFlush0 = false;
+                }
+                return;
+            }
+            try {
+                doWrite(outboundBuffer);
+            } catch (Throwable t) {
+               ......
+            } finally {
+                inFlush0 = false;
+            }
+        }
+```
+该代码主要做了如下事情:
+1. 检查是否有正在flush,  如是的话, 直接退出。
+2. 标志正在flush
+3.调用doWrite继续刷:
+```
+protected void doWrite(ChannelOutboundBuffer in) throws Exception {
+        for (;;) {
+            int size = in.size(); //所有的都写完了
+            if (size == 0) {
+                // All written so clear OP_WRITE
+                clearOpWrite();
+                break;
+            }
+            long writtenBytes = 0;
+            boolean done = false;
+            boolean setOpWrite = false;
+            // Ensure the pending writes are made of ByteBufs only.
+            ByteBuffer[] nioBuffers = in.nioBuffers(); //获取的是DirectByteBuf[] 共三个
+            int nioBufferCnt = in.nioBufferCount();
+            long expectedWrittenBytes = in.nioBufferSize();
+            SocketChannel ch = javaChannel();
+            // Always us nioBuffers() to workaround data-corruption.
+            // See https://github.com/netty/netty/issues/2761
+            switch (nioBufferCnt) {
+                case 0:
+                    // We have something else beside ByteBuffers to write so fallback to normal writes.
+                    super.doWrite(in);
+                    return;
+                case 1:
+                    // Only one ByteBuf so use non-gathering write
+                    ByteBuffer nioBuffer = nioBuffers[0];
+                    for (int i = config().getWriteSpinCount() - 1; i >= 0; i --) {
+                        final int localWrittenBytes = ch.write(nioBuffer);
+                        if (localWrittenBytes == 0) {
+                            setOpWrite = true;
+                            break;
+                        }
+                        expectedWrittenBytes -= localWrittenBytes;
+                        writtenBytes += localWrittenBytes;
+                        if (expectedWrittenBytes == 0) {
+                            done = true;
+                            break;
+                        }
+                    }
+                    break;
+                default:
+                    for (int i = config().getWriteSpinCount() - 1; i >= 0; i --) {//循环16次, 可能一次写不完
+                        final long localWrittenBytes = ch.write(nioBuffers, 0, nioBufferCnt); //真正的写出
+                        if (localWrittenBytes == 0) {
+                            setOpWrite = true;
+                            break;
+                        }
+                        expectedWrittenBytes -= localWrittenBytes;
+                        writtenBytes += localWrittenBytes;
+                        if (expectedWrittenBytes == 0) {
+                            done = true;
+                            break;
+                        }
+                    }
+                    break;
+            }
+            // Release the fully written buffers, and update the indexes of the partially written buffer.
+            in.removeBytes(writtenBytes); //记录可丢弃的数据
+            if (!done) {//若没有写完
+                // Did not write all buffers completely.
+                incompleteWrite(setOpWrite);
+                break;
+            }
+        }
+    }
+```
+该函数主要做了如下事情:
+1. 通过in.nioBuffers() 获取content的直接内存DirectByteBuf[]
+2. 当content个数>=1时, 通过for 循环发送config().getWriteSpinCount()次, 为什么这样做? 是以免一次数据量太大了, 发送一次发送不完。ch.write()这个函数是不是又很常见了。
 
+至此, write到内存、flush网络部分全部讲完了。
