@@ -440,7 +440,7 @@ state初始值为ST_INIT, 该函数主要做了如下操作:
 1) 可以看出实际编码后存放的是 key: value\r\n; 注意冒号后面是空格
 2) 通过CharsetUtil.US_ASCII编码key和value
 + 再接着写入[CRLF]。 其实可以看出, http response byte每部分内容都是以[CRLF]作为分隔符, 格式如下:
-<img href="http://owsl7963b.bkt.clouddn.com/HttpResponse_Byte.png" />
+<img src="http://owsl7963b.bkt.clouddn.com/HttpResponse_Byte.png" />
 
 然后根据header部分来改变state状态, 一般state会被置为ST_CONTENT_NON_CHUNK。根据MessageToMessageEncoder.write()可知, 编码完DefaultHttpResponse, 就调用DefalueChannalHadlerContext.write继续向外写, 后面会详细讲些该部分。
 2.第二、三次、四次传递过来的是DefaltHttpContent, 将进入ST_CONTENT_NON_CHUNK部分。
