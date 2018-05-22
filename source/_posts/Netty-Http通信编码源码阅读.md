@@ -29,7 +29,7 @@ private void write(Object msg, boolean flush, ChannelPromise promise) {
         }
     }
 ```
-当自定义handler向外发送数据时, 走的是else部分, 此时, 会产生WriteAndFlushTask对象,  其为Runnable类, 在run函数中, 会直接调用write(), write定义如下:
+当自定义handler向外发送数据时, 走的是else部分; 若我们调用了flush()方法, 此时, 会产生WriteAndFlushTask对象,  其为Runnable类, 在run函数中, 会直接调用write(), write定义如下:
 ```
         @Override
         public void write(AbstractChannelHandlerContext ctx, Object msg, ChannelPromise promise) {
@@ -40,6 +40,7 @@ private void write(Object msg, boolean flush, ChannelPromise promise) {
 可以看出, 写数据分为两个过程:write()和flush():
 + write只是将数据放在了缓存ChannelOutboundBuffer中
 + 通过调用channal.write()向网络发送数据。
+
 # HttpContentCompressor及父类HttpContentEncoder、MessageToMessageCodec
 我们需要知道: MessageToMessageCodec该类是一个ChannelDuplexHandler类型的, 可以同时在IN, OUT场景下使用。
 首先进入的是MessageToMessageCodec的write()函数, 通过该函数的encoder.write(ctx, msg, promise)跳转到MessageToMessageEncoder的write()函数中, 实现如下:
@@ -93,11 +94,11 @@ private void write(Object msg, boolean flush, ChannelPromise promise) {
     }
 ```
 实现也很简单,主要做了如下两件事:
-1. 首先通过encode()进行编码, encode()是在HttpContentEncoder中实现的。; 若out没有编码输出, 则直接抛出异常;最终通过msg.release()释放response.content占用的空间。
-2. 针对编码输出out, 循环遍历每一个compoment, 通过DefalueChannalHadlerContext.write()向外写出数据。
+1. 首先通过encode()进行编码, encode()是在HttpContentEncoder中实现的: 若out没有编码输出, 则直接抛出异常;最终通过msg.release()释放response.content占用的空间。
+2. 针对编码输出out, 循环遍历out中每一个compoment, 通过DefalueChannalHadlerContext.write()向外写出数据。
 
 ## HttpContentEncoder的encode()函数
-首先需要了解decode(), 在写入的时候, 将header里面的accept-encoding属性取值赋给acceptEncodingQueue, 这样编码的时候就知道需要使用什么编码器了, 本wiki在使用时, 客户端发送的编码器: "gzip,deflat,br"
+首先需要了解HttpContentEncoder的decode(), 在写入的时候, 将header里面的accept-encoding属性取值赋给acceptEncodingQueue, 这样服务器端返回数据压缩的时候就知道需要使用什么编码器了, 本文章以客户端发送的编码器: "gzip,deflat,br"为例。
 
 endoce函数如下, 其中msg为DefaultFullHttpResponse, 包含了header和content部分
 ```
@@ -221,12 +222,12 @@ endoce函数如下, 其中msg为DefaultFullHttpResponse, 包含了header和conte
     }
 ```
 该编码器encode主要做的事情:
-1. 根据state初始值AWAIT_HEADERS(默认)首先AWAIT_HEADERS分支, 获取result_code:
-+ 若为100, 说明之时一个continue信号, acceptEncoding赋值为空, 告诉后面不用编码该返回。
-+ 否则, 根据encode()获取可接受编码accept-encoding: gzip,deflat,br
-2. 根据规范code返回值若为All 1xx (informational), 204 (no content), and 304 (not modified), 一定不能包含message-body部分。继续检查result_code, 若是该类code, 直接将将out.add(res)退出, 而不用考虑对content部分进行压缩。
-3. 检查contet部分是否还有未读数据, 没有的话直接放入out.add(res), 也是不用继续压缩。
-4. 在beginEncode中建立相应压缩管道EmbeddedChannel:
+1.根据state初始值AWAIT_HEADERS(默认)首先AWAIT_HEADERS分支, 获取result_code:
++ 若为100, 说明之时一个continue信号, acceptEncoding赋值为空, 告诉后面不用压缩直接返回。
++ 否则, 根据获取decode()时设置的压缩格式:accept-encoding: gzip,deflat,br
+2.根据规范`rfc2616 4.3 Message Body`, code返回值若为All 1xx (informational), 204 (no content), and 304 (not modified)时, response一定不能包含message-body部分。此时检查result_code, 若是该类code, 直接执行将out.add(res)而退出, 而不用考虑对content部分进行压缩。
+3.检查response的contet是否有可读数据, content没值的话直接放入out.add(res)返回。
+4.在beginEncode中建立相应压缩管道EmbeddedChannel:
 ```
  protected Result beginEncode(HttpResponse headers, String acceptEncoding) throws Exception {
         ZlibWrapper wrapper = determineWrapper(acceptEncoding);//GZIP
@@ -252,13 +253,13 @@ endoce函数如下, 其中msg为DefaultFullHttpResponse, 包含了header和conte
                         wrapper, compressionLevel, windowBits, memLevel)));
     }
 ```
-主要做了如下事情,
+主要做了如下事情:
 + 首先在determineWrapper判断使用哪种压缩编码, 使用优先级gzip>deflate
 + 返回EmbeddedChannel, 我们需要注意该channel里面通过ZlibCodecFactory.newZlibEncoder()方式添加了一个handler, 该返回EmbeddedChannel的pipeline结构如下:<img src="http://owsl7963b.bkt.clouddn.com/GzipPipline.png" />
 对gzip编码感兴趣的话, 可以看下JdkZlibEncoder.encode关于编码的细节。
-5. 向返回值headlerz中添加 content-encoding:gzip
-6. 封装header, result_code, http_version, 产生一个DefaultHttpResponse, 放入out.
-7. 在encodeFullResponse中调用编码函数encodeContent()
+5.向返回值headler中添加 content-encoding:gzip
+6.封装header, result_code, http_version, 产生一个DefaultHttpResponse, 放入out.
+7.在encodeFullResponse中调用编码函数encodeContent()
 ```
 private boolean encodeContent(HttpContent c, List<Object> out) {
         ByteBuf content = c.content();
@@ -279,11 +280,11 @@ private boolean encodeContent(HttpContent c, List<Object> out) {
         return false;
     }
 ```
-7.1 注意这里的encode部分, 调用的是 encoder.writeOutbound(in.retain()), 而encoder就是前面描述的EmbeddedChannel, 进去后, 发现调用的是EmbeddedChannel.write(m),  依次处理的handler见上图EmbeddedChannel的pipeline。
-+ 调用JdkZlibEncoder.write()进行压缩。
+7.1.注意这里的encode部分, 调用的是 encoder.writeOutbound(in.retain()), 而encoder就是前面描述的EmbeddedChannel, 进去后, 发现调用的是EmbeddedChannel.write(m),  依次处理的handler见上图EmbeddedChannel的pipeline。
++ 调用JdkZlibEncoder.encode()进行压缩。
 + 将数据写入ChannelOutboundBuffer对象并刷新, 写入的时候也会受限制于高水位,但是实际并不起什么作用, 后面在真正发送数据的时候会详细讲解这部分。
-+ 在finishEncode()中会产生DefaultHttpContent, 里面存放的是gzip压缩的footer, 具体byte见JdkZlibEncoder.finishEncode里面描述。
-7.2 向out中写入LastHttpContent.EMPTY_LAST_CONTENT, 代表这个帧内容结束。
++ 在finishEncode()中会产生DefaultHttpContent, 里面存放的是gzip压缩的footer(可读才10 byte), 具体byte见JdkZlibEncoder.finishEncode里面描述。
+7.2.向out中写入LastHttpContent.EMPTY_LAST_CONTENT, 代表这个帧内容结束。
 这样整个输出帧的内容存放在out中, 拥有的对象如下:
 <img src="http://owsl7963b.bkt.clouddn.com/HttpOutPutResponse.png" />
 其中:
@@ -291,11 +292,11 @@ private boolean encodeContent(HttpContent c, List<Object> out) {
 + 第一个DefaultHttpContent存放的是压缩的内容。
 + 第二个DefaultHttpContent存放的是压缩器gzip的尾部标识部分。
 + LastHttpContent代表整个帧的结束, content部分为空。
-8. 在encodeFullResponse中, 向header部分添加整个帧的长度content-length属性。
-## JdkZlibEncoder编码
-我们可以了解下JdkZlibEncoder.write()是怎么编码的
+8.在encodeFullResponse中, 向header部分添加整个帧的长度content-length属性。
+## JdkZlibEncoder压缩
+我们可以了解下JdkZlibEncoder.encode()是怎么压缩的
 ```
-@Override
+    @Override
     protected void encode(ChannelHandlerContext ctx, ByteBuf uncompressed, ByteBuf out) throws Exception {
         int len = uncompressed.readableBytes(); //总共刻度数据
         int offset;
@@ -329,14 +330,14 @@ private boolean encodeContent(HttpContent c, List<Object> out) {
 ```
 可以看到:
 + 首先获得bytebuf的byte数组
-+ 向最终存放压缩数据的out buf(PooledUnsafeDirectByteBuf)中写入gzip压缩标志的头部gzipHeader: {0x1f, (byte) 0x8b, Deflater.DEFLATED, 0, 0, 0, 0, 0, 0, 0};
-我们需要了解的是这个buf长度 =  (int) Math.ceil(msg.readableBytes() * 1.001) + 12 + gzipHeader.len(), 看来极端情况下压缩后可能和压缩前长度差不多;
++ 向最终存放压缩数据的out(PooledUnsafeDirectByteBuf)中写入gzip压缩标志的头部gzipHeader: [0x1f, (byte) 0x8b, Deflater.DEFLATED, 0, 0, 0, 0, 0, 0, 0];
+其中out长度 =  (int) Math.ceil(msg.readableBytes() * 1.001) + 12 + gzipHeader.len(), 看来极端情况下压缩后可能和压缩前长度差不多;
 + 直接调用gzip的压缩算法, 将byte压缩后写入out中. 至于具体的压缩算法, 感兴趣的同学可以自行查看源代码。
 
 
 ## DefalueChannalHadlerContext.write()
 DefalueChannalHadlerContext.write()函数之前的工作主要是编码部分、组成帧。 这里开始将压缩后最终的帧继续向外传递write。
-接下来OutHanlder为HttpResponseEncoder, 实际调用的是其父类MessageToMessageEncoder.write(), 该函数已经在最开始介绍了, 调用的是HttpObjectEncoder.encode(), 函数如下:
+接下来OutHanlder为HttpResponseEncoder, 实际调用的是其父类MessageToMessageEncoder.write(), 该函数已经在最开始介绍了; 其中调用了HttpObjectEncoder.encode(), 函数如下:
 ```
          ByteBuf buf = null;
         if (msg instanceof HttpMessage) {  //如果是头部，则先编码头部
@@ -426,7 +427,7 @@ state初始值为ST_INIT, 该函数主要做了如下操作:
         final int entryLen = nameLen + valueLen + 4;
         buf.ensureWritable(entryLen);  //检查buf的最小长度
         int offset = buf.writerIndex();
-        writeAscii(buf, offset, name); // buf.setCharSequence(offset, value, CharsetUtil.US_ASCII);使用US_ASCII编码
+        writeAscii(buf, offset, name); // 使用US_ASCII编码
         offset += nameLen;
         buf.setByte(offset ++, ':');//:
         buf.setByte(offset ++, ' ');//空格
@@ -436,13 +437,15 @@ state初始值为ST_INIT, 该函数主要做了如下操作:
         buf.setByte(offset ++, '\n');
         buf.writerIndex(offset);
 ```
-1) 可以看出实际编码后存放的是 key: value\r\n; 注意:后面是空格
+1) 可以看出实际编码后存放的是 key: value\r\n; 注意冒号后面是空格
 2) 通过CharsetUtil.US_ASCII编码key和value
-+ 再接着写入[CRLF], 可以看出,每部分内容都是以[CRLF]作为分隔符。
-然后根据header部分还改变state状态, 一般state会被置为ST_CONTENT_NON_CHUNK。根据MessageToMessageEncoder.write()可知, 编码完DefaultHttpResponse, 就调用DefalueChannalHadlerContext.write继续向外写, 后面会详细讲些该部分。
++ 再接着写入[CRLF]。 其实可以看出, http response byte每部分内容都是以[CRLF]作为分隔符, 格式如下:
+<img href="http://owsl7963b.bkt.clouddn.com/HttpResponse_Byte.png" />
+
+然后根据header部分来改变state状态, 一般state会被置为ST_CONTENT_NON_CHUNK。根据MessageToMessageEncoder.write()可知, 编码完DefaultHttpResponse, 就调用DefalueChannalHadlerContext.write继续向外写, 后面会详细讲些该部分。
 2.第二、三次、四次传递过来的是DefaltHttpContent, 将进入ST_CONTENT_NON_CHUNK部分。
-+ 该部分, 直接将整个DefaltHttpContent放入out向外写
-+ 当发现传递过来的Contnt为末尾标识符LastHttpContent时, contentLength为0, 此时将直接跳到ST_CONTENT_ALWAYS_EMPTY部分执行,out会添加EMPTY_BUFFER, 最终置state=ST_INIT, 等待下一个帧传递过来。
++ 会直接将整个DefaltHttpContent放入out向外写
++ 当发现传递过来的Content为末尾标识符LastHttpContent时, contentLength为0, 此时将直接跳到ST_CONTENT_ALWAYS_EMPTY部分执行, out会添加EMPTY_BUFFER, 最终state=ST_INIT置位, 表示该帧处理完成, 等待下一个帧传递过来。
 
 
 # Netty水位
@@ -469,19 +472,19 @@ state初始值为ST_INIT, 该函数主要做了如下操作:
 ```
 + 在这个函数中, 我们需要了解的是: 若直接是最外层发送, 那么filterOutboundMessage将会把msg转变为直接内存buf。
 + 通过ChannelOutboundBuffer.addMessage(msg, size, promise), 将输出结果暂时缓存起来, 形成一个链再批量发送。
-我们需要了解下ChannelOutboundBuffer这个类, 它作为输出byte暂时缓存的地方, 维护着该数据byte组成的链, 结构如下:
+我们需要了解下ChannelOutboundBuffer这个类, 它作为输出内容暂时缓存的地方, 维护着输出数据组成的链, 结构如下:
 <img src="http://owsl7963b.bkt.clouddn.com/ChannelOutboundBuffer.png" />
-flushEntry 表示即将刷新的其实位置
+flushEntry 表示即将刷新的位置
 unflushEntry: 每次调用addFlush()将unflushEntry赋值给flushEntry, 才算真正开始flush数据了。
-tailEntry: 当前缓存message链尾部, 新增message都是尾部追加。 我们需要知道, 尾部追加并没有限制,也就是说, netty本省并不会为我们做限制写入, 它只是负责通知我们达到内存使用水位上限了。 我们需要自己在函数中控制写入数据, 比如在发送数据时, 当且仅当channel.isWritable()为true才继续发送数据。
-把message通过尾部追加添加到输出list之后, 同时调用incrementPendingOutboundBytes(), 记录当前缓存的数据量:
+tailEntry: 当前缓存message时, 新增message都是尾部追加。 我们需要知道, 尾部追加并没有限制, 也就是说, netty本身并不会为我们做限制写入, 它只是负责通知我们达到内存使用水位上限了。 我们需要自己在函数中控制写入数据, 比如在发送数据时, 当且仅当channel.isWritable()为true才继续发送数据。
+当把message通过尾部追加添加到输出list之后, 会同时调用incrementPendingOutboundBytes(), 记录当前已缓存的数据量:
 ```
         long newWriteBufferSize = TOTAL_PENDING_SIZE_UPDATER.addAndGet(this, size);////原子更新一下当前的水位，并获取最新的水位信息
         if (newWriteBufferSize > channel.config().getWriteBufferHighWaterMark()) {//如果当前的水位高于配置的高水位，那么就要调用setUnwriteable方法
             setUnwritable(invokeLater);
         }
 ```
-所以当然向ChannelOutboundBuffer添加content不能太快了, 否则若来不及发送的话, 都是堆积在直接内存中, 容易造成内存OOM, 这里是如何限处理存数据大小的呢?
+所以向ChannelOutboundBuffer添加content不能太快了, 否则若来不及发送的话, 都是堆积在直接内存中, 容易造成内存OOM, 这里是如何限处理存数据大小的呢?
 在netty启动时, 只需要添加如下参数即可:
 ```
 ServerBootstrap bootstrap = new ServerBootstrap();
@@ -489,7 +492,7 @@ bootstrap.childOption(ChannelOption.WRITE_BUFFER_HIGH_WATER_MARK, 64 * 1024);
 bootstrap.childOption(ChannelOption.WRITE_BUFFER_LOW_WATER_MARK, 32 * 1024);
 ```
 代表:
-+ 当每个channel使用写出缓存超过高水位64kb时候, 就会调用fireChannelWritabilityChanged函数, 让上游感知, 同时Channel.isWritable()返回false。
++ 当每个channel使用写出缓存超过高水位64kb(默认值)时候, 就会调用fireChannelWritabilityChanged函数, 让上游感知, 同时Channel.isWritable()返回false。
 + 当每个channel使用写出缓存超过高水位之后, 又通过发送到网络后回落到低水位时, Channel.isWritable() 将会返回true.
 ## setUnwritable设置不可写
 
@@ -509,13 +512,13 @@ bootstrap.childOption(ChannelOption.WRITE_BUFFER_LOW_WATER_MARK, 32 * 1024);
 在自定义handler时, 可以覆盖该函数, 并通过channelWritable()判断是达到水位上限还是恢复可写了。
 
 # Flush
-数据发送到缓存之后, 就开始调用ctx.invokeFlush(),  开始从HttpPipeliningHandler》flush开始调用,  一直到HeadContext.flush(), 调用如下:
+数据发送到缓存之后, 就开始调用ctx.invokeFlush(),  开始从HttpPipeliningHandler.flush开始调用,  一直到HeadContext.flush(), HeadContext.flush()调用如下:
 ```
         public void flush(ChannelHandlerContext ctx) throws Exception {
             unsafe.flush();
         }
 ```
-这样的代码是不是很熟悉, 和write部分最终调用时一样的。 调用AbstractChannel$AbstractSafeUnSafe.flush()
+这样的代码结构是不是很熟悉, 和write部分最终调用时一样的。 调用AbstractChannel$AbstractSafeUnSafe.flush():
 ```
         @Override
         public final void flush() {
@@ -640,6 +643,6 @@ protected void doWrite(ChannelOutboundBuffer in) throws Exception {
 ```
 该函数主要做了如下事情:
 1. 通过in.nioBuffers() 获取content的直接内存DirectByteBuf[]
-2. 当content个数>=1时, 通过for 循环发送config().getWriteSpinCount()次, 为什么这样做? 是以免一次数据量太大了, 发送一次发送不完。ch.write()这个函数是不是又很常见了。
+2. 当content个数>=1时, 通过for 循环发送config().getWriteSpinCount()次, 为什么这样做? 是以免一次数据量太大了, 发送一次发送不完, 默认可以连续发送16次。ch.write()这个函数是不是又很常见了。
 
-至此, write到内存、flush网络部分全部讲完了。
+至此, write到缓存、flush到网络部分全部讲完了。
