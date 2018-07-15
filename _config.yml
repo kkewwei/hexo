@@ -70,7 +70,8 @@ top: true
 # Miscellaneous
 baidu_analytics: ''
 google_analytics: ''
-favicon: '/elasticsearch_learning/master/img/ico.png'
+#favicon: '/blob/master/img/picture.png'
+favicon: '/elasticsearch_learning/img/ico.png'    #在主题的_config.yml里面配置图标是有效的, 这里没有效果
 #favicon: 'http://owsl7963b.bkt.clouddn.com/ico.png'
 #你的头像url   这个是github 代码的相对路径
 avatar: '/blob/master/img/picture.jpg'
@@ -97,11 +98,13 @@ changyan_conf: false
 disqus: false
 
 #5、Gitment
-gitment_owner: false      #你的 GitHub ID
-gitment_repo: ''          #存储评论的 repo
+gitment_owner: 'kkewwei'      #你的 GitHub ID
+gitment_repo: 'comments'
+#gitment_repo: 'kkewwei.github.io/comments'          #存储评论的 repo
+#gitment_repo: 'kkewwei.github.io/elasticsearch_learning'
 gitment_oauth:
-  client_id: ''           #client ID
-  client_secret: ''       #client secret
+  client_id: '9391e497d6b288887f33'           #client ID
+  client_secret: 'db733731bff4ee2811d9530b1ac4cfc6767e8183'       #client secret
 
 # 样式定制 - 一般不需要修改，除非有很强的定制欲望…
 style:
