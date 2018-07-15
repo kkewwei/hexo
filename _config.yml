@@ -70,9 +70,9 @@ top: true
 # Miscellaneous
 baidu_analytics: ''
 google_analytics: ''
-favicon: /favicon.png
-
-#你的头像url
+favicon: 'elasticsearch_learning/img/ico.png'
+#favicon: 'http://owsl7963b.bkt.clouddn.com/ico.png'
+#你的头像url   这个是github 代码的相对路径
 avatar: '/blob/master/img/picture.jpg'
 #avatar: 'http://owqu66xvx.bkt.clouddn.com/Free-Converter.com-timg-26972045.jpg'
 
