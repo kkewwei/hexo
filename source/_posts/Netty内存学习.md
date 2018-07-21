@@ -1,5 +1,5 @@
 ---
-title: Netty PoolArea内存原理探究
+title: Netty PoolArea原理探究
 date: 2018-05-23 22:31:13
 tags:
 ---
@@ -32,10 +32,65 @@ Netty内存主要分为两种: DirectByteBuf和HeapByteBuf, 实际上就是堆�
 + 从绑定的PoolThreadCache中获取PoolArena, 从PoolArena中开始真正分配内存。
 
 # PoolArena
-PoolArena作为Netty底层核心内存管理类, 主要原理是首先申请一些内存块, 不同的属性管理不同大小的内存块。下图描述了Netty主要的属性对象
+PoolArena作为Netty底层核心内存管理类, 主要原理是首先申请一些内存块, 不同的成员变量分配不同大小的内存块。下图描述了Netty主要的成员变量:
 <img src="http://owsl7963b.bkt.clouddn.com/PoolArea.png" height="400" width="450"/>
+netty将内存块划分为3个类型:
+```
+    enum SizeClass {
+        Tiny,
+        Small,
+        Normal
+    }
+```
+Tiny主要解决16b-498b之间的内存块分配, small解决分配512b-4kb的内存分配, normal解决8k-16m的内存分配。 该图清晰地描述了PoolArena里这三个类型对应的变量: tinySubpagePools、smallSubpagePools、q050、q025、q000、qInit、q075、q100。
+大致了解了这些, 为了更详细的了解分配细节, 首先对PoolArena成员变量进行简单分析
+```
+    //tiny级别的个数, 每次递增2^4b, tiny总共管理32个等级的小内存片:[16, 32, 48, ..., 496], 注意实际只有31个级别内存块
+    static final int numTinySubpagePools = 512 >>> 4;
+    //全局默认唯一的分配者, 见PooledByteBufAllocator.DEFAULT
+    final PooledByteBufAllocator parent;
+    // log(16M/8K) = 11,指的是normal类型的内存等级, 分别为[8k, 16k, 32k, ..., 16M]
+    private final int maxOrder;
+    //默认8k
+    final int pageSize;
+    //log(8k) =  13
+    final int pageShifts;
+    //默认16M
+    final int chunkSize;
+    //-8192
+    final int subpageOverflowMask;
+    //指的是small类型的内存等级: pageShifts - log(512) = 4,分别为[512, 1k, 2k, 4k]
+    final int numSmallSubpagePools;
+     //small类型分31个等级[16, 32, ..., 512], 每个等级都可以存放一个链(元素为PoolSubpage), 可存放未分配的该范围的内存块
+    private final PoolSubpage<T>[] tinySubpagePools;
+     //small类型分31个等级[512, 1k, 2k, 4k], 每个等级都可以存放一个链(元素为PoolSubpage), 可存放未分配的该范围的内存块
+    private final PoolSubpage<T>[] smallSubpagePools;//存储1024-8096大小的内存
+     //存储chunk(16M)使用率的内存块, 不同使用率的chunk, 存放在不同的对象中
+    private final PoolChunkList<T> q050;
+    private final PoolChunkList<T> q025;   //存储内存利用率25-75%的chunk
+    private final PoolChunkList<T> q000;   //存储内存利用率1-50%的chunk
+    private final PoolChunkList<T> qInit;  //存储内存利用率0-25%的chunk
+    private final PoolChunkList<T> q075;    //存储内存利用率75-100%的chunk
+    private final PoolChunkList<T> q100;   //存储内存利用率100%的chunk
 
+    private final List<PoolChunkListMetric> chunkListMetrics;
 
+    // Metrics for allocations and deallocations
+    private long allocationsNormal;
+    // We need to use the LongCounter here as this is not guarded via synchronized block.
+    private final LongCounter allocationsTiny = PlatformDependent.newLongCounter();
+    private final LongCounter allocationsSmall = PlatformDependent.newLongCounter();
+    private final LongCounter allocationsHuge = PlatformDependent.newLongCounter();
+    private final LongCounter activeBytesHuge = PlatformDependent.newLongCounter();
+
+    // Number of thread caches backed by this arena. 该PoolArea被多少线程引用。
+    final AtomicInteger numThreadCaches = new AtomicInteger();
+
+```
+PoolArea将申请的未使用的、不同大小的内存块使用不同的对象来分配完成:
++ tinySubpagePools分配[16b, 496b]之间的内存大小, 每次分配以16b为一个单位增长。
++ smallSubpagePools 分配[512b, 8k]之间的内存大小, 每次翻倍增长。
++ q050、q025、q000、qInit、q075都是分配[8k, 16M]大小的对象, 存放的元素都是大小为16M的PoolChunk, 不同的是元素PoolChunk的使用率不同, 比如q025里面存放的chunk使用率为[25%, 75%]。
 
 
 
