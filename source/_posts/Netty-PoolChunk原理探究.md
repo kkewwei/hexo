@@ -82,6 +82,7 @@ Netty为每一层分配的一个层号, 根据层号可以直接获取该节点�
     }
 ```
 针对申请的不同内存大小, 从不同对象中分配。若申请的内存大于page(8k), 进入allocateRun进行申请, 若申请的内存大小小于8K, 进入allocateSubpage进行申请。
+## 分配大于page的内存
 我们首先看allocateRun是如何操作的
 ```
      private long allocateRun(int normCapacity) {//64k
@@ -94,3 +95,36 @@ Netty为每一层分配的一个层号, 根据层号可以直接获取该节点�
         return id;
     }
 ```
+1. 首先算出该在二叉树哪层分配内存, 比如申请32k的内存, 那么d = maxOrder - (log2(normCapacity) - pageShifts) = 11 - (log2(32k) - 13) = 9, 为啥pageShift默认为13, 因为log2(8k)=13
+2. 开始进入二叉树对应的d层中通过allocateNode查找哪个节点还没有分配出去:
+```
+    private int allocateNode(int d) {
+        int id = 1;
+        int initial = - (1 << d); // has last d bits = 0 and rest all = 1
+        byte val = value(id);
+        //若第一层的深度不够，那么该chunkend不够分配
+        if (val > d) { // unusable
+            return -1;
+        }
+        while (val < d || (id & initial) == 0) { // id & initial == 1 << d for all ids at depth d, for < d it is 0
+            id <<= 1;
+            val = value(id);
+            if (val > d) {
+                id ^= 1;
+                val = value(id);
+            }
+        }
+        byte value = value(id);
+        assert value == d && (id & initial) == 1 << d : String.format("val = %d, id & initial = %d, d = %d",
+                value, id & initial, d);
+        setValue(id, unusable); // mark as unusable
+        updateParentsAlloc(id);
+        return id; //仅仅返回的是下标
+    }
+```
+主要做了如下工作:
+1. 从根节点开始遍历, 首先检查第1层的层号, 若大于申请的层号, 那么该节点不够申请的大小, 直接退出。
+2. 若当前节点的层数<d, 继续下一层左孩子节点查找, 直到找到某一个节点的层数==目前层数d, 则完成查找。 这里需要注意的一个细节:
+若当前节点的层数=目前层数, 不代表着工作的完成, 会进行(id & initial) == 0 判断,
+<img src="http://owsl7963b.bkt.clouddn.com/PoolChunke%20allocation%20select.png%20" height="400" width="450"/>
+<img src="img/Page allocation.png" height="400" width="450"/>
