@@ -3,14 +3,14 @@ title: Netty PoolChunk原理探究
 date: 2018-07-20 18:48:20
 tags:
 ---
-Netty分配内存与回收主要是在PoolChunk上完成的, 在内存分配时希望是有序的。对于申请到的16M PoolChunk内存, 用户实际使用时可能一次性不能使用16M, 所以逻辑上划分成不同的块, 使用平衡二叉树进行管理, 二叉树结构如下:
+Netty分配内存(0~16M)与回收主要是在PoolChunk上完成的, 在内存分配时希望是有序的。当没有内存可分配时, 一次申请到16M PoolChunk内存, 用户实际使用时可能一次性不能使用16M, 所以逻辑上将PoolChunk划分成不同的块, 使用平衡二叉树进行管理内存的分配, 构建的二叉树结构如下:
 <img src="http://owsl7963b.bkt.clouddn.com/PoolChunk1.png" height="400" width="450"/>
 该二叉树将PoolChunk分11层, 第一层为1个16M, 第二层为2个8MB,第三层为4个4MB的内存块, 直到第11层为2048个8KB的内存块,  8kb的内存块称之为page。
 + 如果我们申请16M的内存, 那么将直接在该二叉树第一层申请。
 + 若申请32K的内存, 那么在该二叉树第8层申请。
 + 若申请8K的内存, 那么将直接在第11层申请。
-*实际内存申请内存大小时, size一定限定为2的幂次方, 参考<a href="https://kkewwei.github.io/elasticsearch_learning/2018/05/23/Netty%E5%86%85%E5%AD%98%E5%AD%A6%E4%B9%A0/">Netty PoolArea原理探究</a>*
-接下来仔细介绍PoolChunk的成员属性:
+*实际申请内存大小时, size一定限定为2^x, 参考<a href="https://kkewwei.github.io/elasticsearch_learning/2018/05/23/Netty%E5%86%85%E5%AD%98%E5%AD%A6%E4%B9%A0/">Netty PoolArea原理探究</a>
+接下来介绍PoolChunk的成员属性:
 ```
     //该PoolChunk所属的PoolArena, 上层PoolArena控制着在哪块PoolArena上分配
     final PoolArena<T> arena;。
@@ -50,7 +50,7 @@ Netty分配内存与回收主要是在PoolChunk上完成的, 在内存分配时�
 Netty为每一层分配的一个层号, 根据层号可以直接获取该节点剩余最大可分配的内存空间。
 当第11层下标为2048的节点被分配出去:
 1. 则该节点的层号被修改为12, 表示该节点不可再分配。
-2. 同时id为1024的父节点层号改为11, id为512的节点层号改为10, id为1的节点层号改为2.
+2. 同时id为1024的父节点层号改为11, id为512的节点层号改为10, ..., id为1的节点层号改为2.
 
 当申请16k的内存时, 分配的节点的层号必须等于(11-log(16k/8k)) = 10, id为1024的节点自然被淘汰了。动态记录每个节点层数的成员属性为memoryMap, 记录每个节点深度的成员属性为depthMap, 其中memoryMap值是可以动态改变的, 而depthMap是静态不变的。
 构造函数中该成员斌量初始过程如下:
@@ -81,12 +81,15 @@ Netty为每一层分配的一个层号, 根据层号可以直接获取该节点�
         }
     }
 ```
-针对申请的不同内存大小, 从不同对象中分配。若申请的内存大于page(8k), 进入allocateRun进行申请, 若申请的内存大小小于8K, 进入allocateSubpage进行申请。
++ 返回值handle可以定位出该内存块的处在该PoolChunk中具体的位置信息。
++ 若申请的内存大于等于page(8k), 进入allocateRun进行申请, 返回值handler就是找到的节点在二叉树中的下标(int长度); 若申请的内存小于8K, 进入allocateSubpage进行申请, 返回长度是个long。
+
 ## 分配大于page的内存
 我们首先看allocateRun是如何操作的
 ```
      private long allocateRun(int normCapacity) {//64k
-        int d = maxOrder - (log2(normCapacity) - pageShifts);  //算出当前阶层
+         //算出当前大小的内存需要在那一层完成分配
+        int d = maxOrder - (log2(normCapacity) - pageShifts);
         int id = allocateNode(d);
         if (id < 0) {
             return id;
@@ -95,7 +98,7 @@ Netty为每一层分配的一个层号, 根据层号可以直接获取该节点�
         return id;
     }
 ```
-1. 首先算出该在二叉树哪层分配内存, 比如申请32k的内存, 那么d = maxOrder - (log2(normCapacity) - pageShifts) = 11 - (log2(32k) - 13) = 9, 为啥pageShift默认为13, 因为log2(8k)=13
+1. 首先计算出在二叉树哪层分配内存, 比如申请32k的内存, 那么d = maxOrder - (log2(normCapacity) - pageShifts) = 11 - (log2(32k) - 13) = 9, 说明只能在该二叉树第9层找到合适的节点。 为啥减13, 因为默认pag为8k, log2(8k)=13。
 2. 开始进入二叉树对应的d层中通过allocateNode查找哪个节点还没有分配出去:
 ```
     private int allocateNode(int d) {
@@ -106,7 +109,8 @@ Netty为每一层分配的一个层号, 根据层号可以直接获取该节点�
         if (val > d) { // unusable
             return -1;
         }
-        while (val < d || (id & initial) == 0) { // id & initial == 1 << d for all ids at depth d, for < d it is 0
+        // id & initial == 1 << d for all ids at depth d, for < d it is 0
+        while (val < d || (id & initial) == 0) {
             id <<= 1;
             val = value(id);
             if (val > d) {
@@ -115,16 +119,111 @@ Netty为每一层分配的一个层号, 根据层号可以直接获取该节点�
             }
         }
         byte value = value(id);
-        assert value == d && (id & initial) == 1 << d : String.format("val = %d, id & initial = %d, d = %d",
-                value, id & initial, d);
+        assert value == d && (id & initial) == 1 << d :
+        String.format("val = %d, id & initial = %d, d = %d", value, id & initial, d);
         setValue(id, unusable); // mark as unusable
         updateParentsAlloc(id);
-        return id; //仅仅返回的是下标
+        return id; //返回的是查找到的那个节点的下标
     }
 ```
 主要做了如下工作:
-1. 从根节点开始遍历, 首先检查第1层的层号, 若大于申请的层号, 那么该节点不够申请的大小, 直接退出。
-2. 若当前节点的层数<d, 继续下一层左孩子节点查找, 直到找到某一个节点的层数==目前层数d, 则完成查找。 这里需要注意的一个细节:
-若当前节点的层数=目前层数, 不代表着工作的完成, 会进行(id & initial) == 0 判断,
-<img src="http://owsl7963b.bkt.clouddn.com/PoolChunke%20allocation%20select.png%20" height="400" width="450"/>
-<img src="img/Page allocation.png" height="400" width="450"/>
+1. 从根节点开始遍历, 首先检查第1层的层号, 若大于申请的层号, 那么该节点不够申请的大小, 直接退出。(`若不退出的话, 那就意味该二叉树一定可以找到大小为d层号的节点`, 并且在该节点的下标一定>=2^d)
+2. 若当前节点层数<d, 或者当前节点的下标 < 2^d, 那么继续下一层左孩子节点查找, 直到找到某一个节点的层数==目前层数d, 则完成查找。若发现该节点剩余大小不够分配, 则在兄弟节点继续查找。
+如下图, 当查找层号为11的节点, 找到符合下标id>=x 2^11的节点 && 层号 == 11的节点 , 只能在下标为2049的那个节点。
+<img src="http://owsl7963b.bkt.clouddn.com/PoolChunke_allocation_select.png" height="300" width="350"/>
+其中 (id & initial) == 0) 等价于id <2^d, 作用: 若当前节点的下标< 2^s, 则会继续在当前节点的孩子节点查找。
+3. 将成功找到的那个节点层号标为不可分配unusable, 意味着已经分配出去了。
+4. 更新该节点的所有祖父父节点层号:
+```
+   private void updateParentsAlloc(int id) {
+        while (id > 1) {  //开始更新父类节点的值
+            int parentId = id >>> 1;
+            byte val1 = value(id);
+            byte val2 = value(id ^ 1);  //获取相邻节点的值
+            byte val = val1 < val2 ? val1 : val2;
+            setValue(parentId, val);
+            id = parentId;
+        }
+    }
+```
+父节点的层号选取两个子节点层号最小的那个层号, 表示该父节点能分配的最大内存。
+
+## 分配小于page的内存
+我们来看是如何分配小于8k的内存。
+```
+    private long allocateSubpage(int normCapacity) {
+        // Obtain the head of the PoolSubPage pool that is owned by the PoolArena and synchronize on it.
+        // This is need as we may add it back and so alter the linked-list structure.
+        PoolSubpage<T> head = arena.findSubpagePoolHead(normCapacity);  //// 找到arena中对应阶级的subpage头节点，不存数据的头结点
+        synchronized (head) {
+            int d = maxOrder; // subpages are only be allocated from pages i.e., leaves   subpage只能从叶子节点开始找起
+            int id = allocateNode(d); //只在叶子节点找到一个为8k的节点，肯定可以找到一个节点
+            if (id < 0) {
+                return id;
+            }
+
+            final PoolSubpage<T>[] subpages = this.subpages;
+            final int pageSize = this.pageSize;
+
+            freeBytes -= pageSize;//（就是一个16M的空间）
+
+            int subpageIdx = subpageIdx(id);  //第几个PoolSubpage（叶子节点）
+            PoolSubpage<T> subpage = subpages[subpageIdx];
+            if (subpage == null) {  //说明这个PoolSubpagte还没有分配出去
+                subpage = new PoolSubpage<T>(head, this, id, runOffset(id), pageSize, normCapacity);
+                subpages[subpageIdx] = subpage;
+            } else {
+                subpage.init(head, normCapacity);
+            }
+            return subpage.allocate();
+        }
+    }
+```
+主要做了如下事情:
++ 我们需要知道, 小于8k的内存分配都是在叶子节点里面分配的, 首先先从二叉树中查找层号为11(叶子节点)的可用节点。
++ 查看该节点是第几个叶子节点: subpageIdx。
++ 获取该叶子节点对应的PoolSubpage, subpage为null的可能为: PoolSubpage释放时, 并没有从subpages中取出, 该PoolSubpage还存放在subpages的数组里, 可参考<a href="https://kkewwei.github.io/elasticsearch_learning/2018/07/22/Netty-PoolSubpage%E5%8E%9F%E7%90%86%E6%8E%A2%E7%A9%B6/">Netty-PoolSubpage原理探究</a> free()函数, 至于从PoolSubpage中分配内存的过程放在<a href="https://kkewwei.github.io/elasticsearch_learning/2018/07/22/Netty-PoolSubpage%E5%8E%9F%E7%90%86%E6%8E%A2%E7%A9%B6/">Netty-PoolSubpage原理探究</a>中详细描述。
+
+## 释放内存
+上面讲的在allocate中申请内存时, 返回的是一个handle , 该释放内存时的参数也是该handle。
+```
+    void free(long handle) {
+        int memoryMapIdx = memoryMapIdx(handle);
+        int bitmapIdx = bitmapIdx(handle);
+
+        if (bitmapIdx != 0) { // free a subpage
+            PoolSubpage<T> subpage = subpages[subpageIdx(memoryMapIdx)];
+            assert subpage != null && subpage.doNotDestroy;
+
+            // Obtain the head of the PoolSubPage pool that is owned by the PoolArena and synchronize on it.
+            // This is need as we may add it back and so alter the linked-list structure.
+            PoolSubpage<T> head = arena.findSubpagePoolHead(subpage.elemSize);
+            synchronized (head) {
+                if (subpage.free(head, bitmapIdx & 0x3FFFFFFF)) {
+                    return;
+                }
+            }
+        }
+        freeBytes += runLength(memoryMapIdx);
+        setValue(memoryMapIdx, depth(memoryMapIdx));
+        updateParentsFree(memoryMapIdx);
+    }
+```
+做了如下事情:
++ 首先通过handle获取属于哪个page: memoryMapIdx、属于PoolSubpage里面哪个子内存块:bitmapIdx。
+```
+    private static int memoryMapIdx(long handle) { //低32位
+        return (int) handle;
+    }
+    ////高32放着一个PoolSubpage里面哪段的哪个，低32位放着哪个叶子节点
+    private static int bitmapIdx(long handle) { //高32位
+        return (int) (handle >>> Integer.SIZE);
+    }
+```
+handlee低32位字段即为memoryMapIdx, 高32为字段即为bitmapIdx。
++ 判是PoolSubpage的子块bitmapIdx不为0, 那么一定是小于8K的内存释放, 请参考<a href="https://kkewwei.github.io/elasticsearch_learning/2018/07/22/Netty-PoolSubpage%E5%8E%9F%E7%90%86%E6%8E%A2%E7%A9%B6/">Netty-PoolSubpage原理探究</a>toHandle函数
++ 若是PoolSubpage的子块bitmapIdx为0 , 那么一定是大于8K的内存释放, 释放时修改该节点祖辈的层号, 修改该chunk的大小。
+
+# 总结
+
+Netty PoolChunk讲完了, 主要理解二叉树的构建, 当分配大于8K的内存时, 怎么从二叉树中查找合适的节点, 怎么释放该二叉树上的节点块就可以了。 若分配小于8K的内存块, 主要是在子节点内部分配, 将放在<a href="https://kkewwei.github.io/elasticsearch_learning/2018/07/22/Netty-PoolSubpage%E5%8E%9F%E7%90%86%E6%8E%A2%E7%A9%B6/">Netty-PoolSubpage原理探究</a>详细探究。

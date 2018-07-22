@@ -168,3 +168,4 @@ jsonContent:
 sitemap:
     path: sitemap.xml
 
+post_asset_folder: true
