@@ -80,12 +80,12 @@ Tiny主要解决16b-498b之间的内存块分配, small解决分配512b-4kb的�
 PoolArea申请内存时根据申请的大小使用不同对象进行分配:
 + tinySubpagePools分配[16b, 496b]之间的内存大小, 数组中每个元素以16b为一个单位增长, 比如申请分配16b的内存, 将在下标为0对应的链中分配; 申请32b的内存, 将在下标为1对应的链中分配。
 + smallSubpagePools分配[512b, 4k]之间的内存大小, 分配结构同tinySubpagePools一样。
-+ q050、q025、q000、qInit、q075主要负责分配[8k, 16M]大小的内存, 其存放的元素都是大小为16M的PoolChunk, 这几个成员变量不同的是元素PoolChunk的使用率不同, 比如q025里面存放的chunk使用率为[25%, 75%]。 同时当需要申请[16b, 4k]的内存、而tinySubpagePools、smallSubpagePools没有合适的内存块时, 会从这些对象包含的PoolChunk中分配8k的叶子节点供重新划分结构进行分配。
-他们存储的属性PoolChunk可以在不同的属性中移动, 其中:
-    若q025中某个PoolChunk使用率大于75%之后, 该PoolChunk将别移动到q050中。
-    若q050中某个PoolChunk使用率小于50%之后, 该PoolChunk将别移动到q025中。
-    qInit使用率为0, 也不会释放该节点。
-    q000使用率为0, 会被释放掉。
++ q050、q025、q000、qInit、q075主要负责分配[8k, 16M]大小的内存, 其存放的元素都是大小为16M的PoolChunk, 这几个成员变量不同的是元素PoolChunk的使用率不同, 比如q025里面存放的chunk使用率为[25%, 75%]。 若需要申请[16b, 4k]的内存、而tinySubpagePools、smallSubpagePools没有合适的内存块时, 会从这些对象包含的PoolChunk中分配8k的叶子节点供重新划分结构进行分配。
+他们存储的属性PoolChunk可以在不同的属性中移动, 其中:<p>
+&nbsp;&nbsp;若q025中某个PoolChunk使用率大于75%之后, 该PoolChunk将别移动到q050中。
+&nbsp;&nbsp;若q050中某个PoolChunk使用率小于50%之后, 该PoolChunk将别移动到q025中。
+&nbsp;&nbsp;若qInit使用率为0, 也不会释放该节点。
+&nbsp;&nbsp;若q000使用率为0, 会被释放掉。
 
 numThreadCaches负责统计该PoolChunk被多少NioEventLoop线程绑定, 具体可见<a href="https://kkewwei.github.io/elasticsearch_learning/2018/07/14/Netty-PoolThreadCache%E6%BA%90%E7%A0%81%E6%8E%A2%E7%A9%B6/">Netty PoolThreadCache原理探究</a>
 
