@@ -4,6 +4,14 @@ date: 2018-09-23 19:47:30
 tags:
 ---
 ReentrantLock作为线程之间相互通信的工具, 在实际项目中较多的被使用到, 了解ReentrantLock, 就不得不提AbstractQueuedSynchronizer(AQS), 本文章将对这两个类展开详述。
+基本使用如下:
+```
+ReentrantLock lock = new ReentrantLock(true);
+//尝试获取锁,获取不到就阻塞
+lock.lock();
+//释放锁,获取完了唤醒被阻塞的线程
+lock.unlock();
+```
 # 简介
 AbstractQueuedSynchronizer，顾名思义，抽象队列同步器，作为抽象类，使用FIFO链，实现了锁的语义, 在CountDownLatch、Semaphore都可以看到该类的实现。
 ## AbstractQueuedSynchronizer详解
@@ -128,7 +136,7 @@ FairSync尝试获取锁的过程比较简单: 若status为0, 那么说明锁还�
     }
 ```
 注意这里for()死循环, 直到当前节点构建出来了等待队列才会退出, 否则不停地重试(重试的原因是可能其他线程也在构造或者向等待线程插入节点, 允许操作失败), 构建完成后, 等待队列如下:
-<img src="http://owsl7963b.bkt.clouddn.com/AQS1.png" height="200" width="450"/>
+<img src="http://owsl7963b.bkt.clouddn.com/AQS1.png" height="200" width="250"/>
 这里需要注意的是, 最开始的的时候, 会虚构出来了一个Node()作为head节点, 可以理解代表着当前拥有锁的那个线程对应的节点。
 #### 设置等待队列
 线程加入等待队列后, 是不能够立马跑去睡眠的, 还需要检查等待队列前继节点是否符合要求, 只有当前继节点waitState为SIGNAL, 那么本节点才可以去睡觉:
@@ -200,7 +208,7 @@ FairSync尝试获取锁的过程比较简单: 若status为0, 那么说明锁还�
 2. 若前继节点为cancel状态, 那么向前找, 直到找到一个不为cancel的节点, 并将为cancel的节点从整个等待队列中去掉, 以便gc回收。
 3. 若找到一个非signal、非cancel的前继节点, 将该前继续节点状态置为signal, 以便前继节点唤醒后继节点。
 在释放节点时(release()), 只要当前状态不为0, 就会唤醒后继节点。此时等待队列如下:
-<img src="http://owsl7963b.bkt.clouddn.com/AQS2.png" height="200" width="450"/>
+<img src="http://owsl7963b.bkt.clouddn.com/AQS2.png" height="200" width="250"/>
 
 有个问题: 这里为啥在else那里不直接可以去睡眠呢?
 假如前继节点释放锁的时候，此时发现自己不为SIGNAL，那么就不唤醒后继节点， 此时后继节点将自己设置为了SIGNAL， 那么此时设置也是无用的，形成了死等待。 所以自己在睡眠之前，再去检查下前继节点是否已经释放了锁，若释放了锁，就直接执行，没有释放锁，才能安慰睡觉。
@@ -215,7 +223,7 @@ FairSync尝试获取锁的过程比较简单: 若status为0, 那么说明锁还�
 ```
 这里我们需要知道, 该线程从睡眠中被唤醒, 有可能是通过LockSupport.unpark(this)、也有可能是通过thread.interrupt()方式唤醒的, 第一种唤醒是有意义的, 对于第二种唤醒并没有意义,我们在acquireQueued中自旋时会忽略这种情况。
 至此, 获取锁的过程已经全部完成, 整体过程如下:
-<img src="http://owsl7963b.bkt.clouddn.com/AQS3.png" height="250" width="800"/>
+<img src="http://owsl7963b.bkt.clouddn.com/AQS4.png" height="260" width="800"/>
 要么获取到锁, 那么线程进入等待队列安心睡眠。
 ### 释放锁
 释放锁只需要调用sync.release(1)就行了, 实际调用的AbstractQueuedSynchronizer里面的函数:
@@ -233,6 +241,21 @@ FairSync尝试获取锁的过程比较简单: 若status为0, 那么说明锁还�
 ```
 主要做了两个事情:
 + 尝试将状态复位, 比如status置为0, 排他线程置为null.
+```
+        protected final boolean tryRelease(int releases) {
+            int c = getState() - releases;
+            if (Thread.currentThread() != getExclusiveOwnerThread())
+                throw new IllegalMonitorStateException();
+            boolean free = false;
+            if (c == 0) { //释放的时候，把status给清0了
+                free = true;
+                setExclusiveOwnerThread(null);
+            }
+            setState(c);
+            return free;
+        }
+```
+这里实现有个需要注意的地方, ReentrantLock释放了, c为啥不为0, 因为ReentrantLock支持锁的可重入, 允许同一个线程两次获取锁。
 + 若等待队列有节点, 并且当前节点不为0(初始化), 那么就会去尝试唤醒后继一个有效的节点:
 ```
       private void unparkSuccessor(Node node) {
@@ -267,6 +290,7 @@ FairSync尝试获取锁的过程比较简单: 若status为0, 那么说明锁还�
 唤醒后继节点也是比较简单的:
 1. 首先将本节点waitStatus置为0(初始值)
 2. 如果后继节点被取消了(waitStatus>0), 那么在后继节点中找到一个最靠近的、非cancel状态的节点, 然后唤醒这个节点上的线程。 这里不用将cancel状态的节点从队列中去掉, 在节点尝试获取锁的时候会自动干这个事。
-
+释放锁过程如下:
+<img src="http://owsl7963b.bkt.clouddn.com/AQS5.png" height="200" width="450"/>
 ### 总结
 线程在获取锁的时候, 主要根据ReentrantLock里面的状态status来识别是否可以获取锁, 若为0, 那么锁未被获取; 若为1, 说明锁被一个线程获取; 若大于1, 说明发生了线程重入。 若没有获取到, 则将自己加入等待队列, 然后睡眠。 线程在释放锁时, 也会唤醒等待队列排在前面的线程。

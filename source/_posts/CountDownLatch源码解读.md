@@ -11,7 +11,9 @@ CountDownLatch并不存在公不公平锁的概念, CountDownLatch的这个门�
 CountDownLatch使用方法如下:
 ```
 CountDownLatch countDownLatch = new CountDownLatch(3);
+//获取共享锁,获取不到就阻塞
 countDownLatch.await();
+ //释放一份共享锁
 countDownLatch.countDown();
 ```
 await()方法检查state是否为0, 不为0则阻塞当前线程, countDown()把当前state减一。
@@ -68,6 +70,8 @@ countDown()对state减1一, :
 + 若当前节点waitStatus为0是(初始化状态, 比如刚将头结点从signal变成了0), 那么设置h为PROPAGATE, 表示状态需要向后传递。 实际查找代码, 并没有发现哪里显示使用Node.PROPAGATE这个条件的, 这步实际并没有看出存在的意义。
 + 若h==head, 说明tail==head, 所有节点已经唤醒。那么此时才可以退出。
 需要知道的是, 若节点对应的线程从等待队列中唤醒, 节点此时并没有从等待队列中去掉, 实际在await()中从等待队列中去掉而被回收的。
+释放一个锁的整体过程如下:
+<img src="http://owsl7963b.bkt.clouddn.com/CountDownLatch3.png" height="250" width="700"/>
 
 
 ## await()
@@ -150,6 +154,9 @@ await()实际就是检查state是否为0, 若不为0, 那么本节点就加入�
     }
 ```
 首先修改头结点, 其次判断判断后继节点是否是共享的(nextWaiter == SHARED), 前面可知, 每个线程构造等待节点时, 传递的nextWaiter=SHARED, 也恰好满足条件。共享锁唤醒操作在await()里有介绍(doReleaseShared())。
+获取所得过程如下:
+<img src="http://owsl7963b.bkt.clouddn.com/CountDownLatch4.png" height="250" width="800"/>
+
 
 ## 超时等待
 在项目使用中, 若有一个countDown()得不到执行, 那么awit()线程将永远阻塞下去, 这是一个比较严重的事情, ReentrantLock给我们提供了超时等待的机制:
@@ -158,5 +165,10 @@ CountDownLatch.await(100000, TimeUnit.MILLISECONDS)
 ```
 指的是, 超时等待100s, 自动退出, `并不会因为超时没有获取到锁而抛出异常`。这里doAcquireSharedNanos在睡眠前, 将剩余超时时间与spinForTimeoutThreshold(默认1ms)做对比, 若小于1ms, 说明超时时间太短, 就没有必要再去睡眠, 而采取自旋的方式。
 doAcquireSharedNanos与非超时的函数doAcquireShared区别主要就是底层一个调用了LockSupport.parkNanos(this, nanosTimeout), 一个调用了LockSupport.parkNanos(this), 别的并没有区别。
+
+## ReentrantLock和CountDownLatch对比
+ReentrantLock作为互斥锁, 当且仅当前面的线程被unlock()唤醒后, 后继节点才能被唤醒。前面一个节点唤醒后,直到运行unlock(), 才能继续唤醒阻塞的线程。
+CountDownLatch作为共享锁, 在countDown()中首先会唤醒阻塞的队列, 再继续唤醒下一个线层(调用doReleaseShared()函数)。同时被唤醒的那个线程也会继续唤醒后继节点(调用doReleaseShared()函数), 在countDown()和await()都可能唤醒后续线程。代码中一个明显的区别就是, 阻塞的线程被唤醒后, ReentrantLock调用的的是setHead()就退出了, 而CountDownLatch调用的是setHeadAndPropagate(), 继续向后传播。
+
 ## 总结
 CountDownLatch获取锁时候, 调用await()时, 只要state为0即可。 而state降低通过countDown()实现。该锁属于共享锁, 当state为0后, 会逐渐通知等待队列中的线程。该类大部分操作与ReentrantLock都是相似的。
