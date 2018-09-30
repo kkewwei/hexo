@@ -38,7 +38,11 @@ AbstractQueuedSynchronizer实现了FIFO队列，该队列存放着目前阻塞�
 |prev|当前节点的前一个节点
 |next|当前节点的后继节点|
 |thread|当前节点所拥有的线程|
-|nextWaiter|链接指向下一个处于condition队列的节点
+|nextWaiter|表明本线程和下游公用一个获取获取锁的信号, 该线程被唤醒后, 该线程?又顺便把下一个节点也唤醒, 比如CountDownLatch中, 上游把锁释放了, 会向后继续传递释放锁的信号。
+nextWaiter=signal与waitStatus=shared的区别是: waitStatus=signal主要体现在线程主动调用释放锁操作unlock()后, 去唤醒等待队列中第一个线程。 waitStatus=shared体现在, 若当前线程尝试获取锁被阻塞后, 被别的线程唤醒后, 当前线程把获取锁的信号向后传递, 也去主动唤醒阻塞的线程。
+<img src="http://owsl7963b.bkt.clouddn.com/AQS6.png" height="200" width="600"/>
+上图可知, 当share时, 线程在获取锁后, 首先唤醒下一个线程再继续run运行; 而signal时, 线程在获取锁后, 首先运行, 在run运行中, 通过主动调用unlock()来唤醒下一个阻塞的线程。
+
 AQS中等待锁的线程队列与运行线程结构如下:
 <img src="http://owsl7963b.bkt.clouddn.com/AQS.png" height="250" width="450"/>
 ### ReentrantLock详解

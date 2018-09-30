@@ -18,7 +18,7 @@ countDownLatch.countDown();
 ```
 await()方法检查state是否为0, 不为0则阻塞当前线程, countDown()把当前state减一。
 ## countDown()
-countDown()对state减1一, :
+countDown()对state减1一:
 ```
     public final boolean releaseShared(int arg) {
           //如果state为0， 那么就说明可以唤醒await()了
@@ -168,7 +168,7 @@ doAcquireSharedNanos与非超时的函数doAcquireShared区别主要就是底层
 
 ## ReentrantLock和CountDownLatch对比
 ReentrantLock作为互斥锁, 当且仅当前面的线程被unlock()唤醒后, 后继节点才能被唤醒。前面一个节点唤醒后,直到运行unlock(), 才能继续唤醒阻塞的线程。
-CountDownLatch作为共享锁, 在countDown()中首先会唤醒阻塞的队列, 再继续唤醒下一个线层(调用doReleaseShared()函数)。同时被唤醒的那个线程也会继续唤醒后继节点(调用doReleaseShared()函数), 在countDown()和await()都可能唤醒后续线程。代码中一个明显的区别就是, 阻塞的线程被唤醒后, ReentrantLock调用的的是setHead()就退出了, 而CountDownLatch调用的是setHeadAndPropagate(), 继续向后传播。
+CountDownLatch作为共享锁, 在countDown()中首先会唤醒阻塞的队列, 再继续唤醒下一个线层(调用doReleaseShared()函数)。同时被唤醒的那个线程也会继续唤醒后继节点(调用doReleaseShared()函数), 在countDown()和await()都可能唤醒后续线程。代码中一个明显的区别就是, 阻塞的线程被唤醒后, ReentrantLock调用的的是setHead()就退出了, 而CountDownLatch调用的是setHeadAndPropagate(), 继续向后传播。这里也体现了共享的概念, 只要获得锁, 合适的情况下就会向后传播, 唤醒后续线程。
 
 ## 总结
-CountDownLatch获取锁时候, 调用await()时, 只要state为0即可。 而state降低通过countDown()实现。该锁属于共享锁, 当state为0后, 会逐渐通知等待队列中的线程。该类大部分操作与ReentrantLock都是相似的。
+CountDownLatch获取锁时候, 调用await()时, 只要state为0即可。 而state降低通过countDown()实现。该锁属于共享锁, 当state为0后, 会逐渐通知等待队列中的线程。
