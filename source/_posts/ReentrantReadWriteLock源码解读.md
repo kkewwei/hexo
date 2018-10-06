@@ -221,38 +221,84 @@ readWriteLock.writeLock().lock();
 + 反之, 修改readHolds里面关于当前线程的获取锁情况, cachedHoldCounter是为了减少ThreadLocal.get()的访问次数。
 + 开始修改state读锁的标志, 这里使用for是为了保证失败后的尝试。
 若此时读锁已经全部释放, 那么返回true, 表明可以唤醒阻塞队列的线程了。
-唤醒阻塞队列的线程过程doReleaseShared如下:
-```
-      private void doReleaseShared() {
-        /*
-         * Ensure that a release propagates, even if there are other
-         * in-progress acquires/releases.  This proceeds in the usual
-         * way of trying to unparkSuccessor of head if it needs
-         * signal. But if it does not, status is set to PROPAGATE to
-         * ensure that upon release, propagation continues.
-         * Additionally, we must loop in case a new node is added
-         * while we are doing this. Also, unlike other uses of
-         * unparkSuccessor, we need to know if CAS to reset status
-         * fails, if so rechecking.
-         */
-        for (;;) {
-            Node h = head;
-            if (h != null && h != tail) {
-                int ws = h.waitStatus;
-                if (ws == Node.SIGNAL) { //若是singal，那么就会通知
-                    if (!compareAndSetWaitStatus(h, Node.SIGNAL, 0))  //失败再重试
-                        continue;            // loop to recheck cases
-                    unparkSuccessor(h); //就会唤醒一个后继者
-                }
-                else if (ws == 0 &&  //按道理这种情况不会发生，若发生了，那么
-                         !compareAndSetWaitStatus(h, 0, Node.PROPAGATE)) //下个节点要无条件传播, 经观察，Node.PROPAGATE)并没有实际意义，
-                    continue;                // loop on failed CAS
-            }
-            if (h == head)                    // loop if head changed, 如果发生了变动，那么再继续释放，可能存在多个线程同时释放等待队列的线程
-                break; //如果没有变化，那么就说明head==tail，没有好唤醒的了
-        }
-    }
-```
+唤醒阻塞队列的线程过程doReleaseShared, 具体过程请看<a href="https://kkewwei.github.io/elasticsearch_learning/2018/09/24/CountDownLatch%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/">CountDownLatch源码解读</a>doReleaseShared(), 主要做的工作就是检查后续阻塞队列, 若是signal, 那么就唤醒阻塞线程。
+可以看出, readLock的获取与释放主要过程与CountDownLatch操作及其相似的, 不同的是尝试获取锁的步骤不同。
 # 写锁
 ## lock()
+写锁获取主要通过 sync.acquire(1)尝试获取:
+```
+    public final void acquire(int arg) {
+        if (!tryAcquire(arg) &&
+            acquireQueued(addWaiter(Node.EXCLUSIVE), arg))
+            selfInterrupt();
+    }
+```
+该函数主要分为三步:
++ 尝试去获取写锁, 若获取到了, 就直接退出。
++ 若没有获取到写锁, 那么将当前线程构成一个Node, 放入线程阻塞队列, 线程进入睡眠等待。
++ 若本次没有获取到锁、从阻塞队列中被唤醒, 并且acquireQueued()返回true, 那么说明该线程被别人调用了中断, 我们需要将该中断再置位向外传递。
+来看第一步:
+```
+        protected final boolean tryAcquire(int acquires) {
+            /*
+             * Walkthrough:
+             * 1. If read count nonzero or write count nonzero
+             *    and owner is a different thread, fail.
+             * 2. If count would saturate, fail. (This can only
+             *    happen if count is already nonzero.)
+             * 3. Otherwise, this thread is eligible for lock if
+             *    it is either a reentrant acquire or
+             *    queue policy allows it. If so, update state
+             *    and set owner.
+             */
+            Thread current = Thread.currentThread();
+            //当前锁个数
+            int c = getState();
+            //写锁个数
+            int w = exclusiveCount(c);
+             ////当前锁个数 != 0（是否已经有线程持有锁），线程重入
+            if (c != 0) {
+                // (Note: if c != 0 and w == 0 then shared count != 0)
+                //w == 0,表示写线程数为0， 有读锁； 有写锁，但是不是当前线程，也退出
+                if (w == 0 || current != getExclusiveOwnerThread())
+                    return false;
+                //当前写锁， 是本身线程，可重入，但是不能超过65536个
+                if (w + exclusiveCount(acquires) > MAX_COUNT)
+                    throw new Error("Maximum lock count exceeded");
+                // Reentrant acquire
+                //写锁可重入
+                setState(c + acquires);
+                return true;
+            }   //当前没有锁
+            //是否该阻塞， 公平锁考考虑等待队列的线程。非公平锁就不用考虑等待队列的线程，直接false
+            if (writerShouldBlock() ||
+                !compareAndSetState(c, c + acquires))
+                return false;
+            setExclusiveOwnerThread(current);
+            return true;
+        }
+```
++ 首先检查是否锁不为0(读+写)。 若读+写不为0, 而写锁为0, 说明有读锁, 本线程获取锁失败; 或者写锁也不为0, 并且获取写锁的那个线程不是本线程, 说明不是写线程的重入,也获取锁失败。 若以上两步有成功的话, 则获取锁成功。
++ 反正则说明当前state=0(没有读+写线程), 那么成功获取到锁。 writerShouldBlock()对于写锁始终未false。
+再来看第二步, 也就是说明本线程没有获取到锁, 那么将本线程加入阻塞队里等待唤醒, nextWaiter设置为EXCLUSIVE,  acquireQueued(addWaiter(Node.EXCLUSIVE), arg))具体怎么实现请去查看<a href="https://kkewwei.github.io/elasticsearch_learning/2018/09/28/ReentrantReadWriteLock%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/">ReentrantReadWriteLock源码解读</a>acquireQueued()
+第三步也很简单, 就是把中断信号向外传递。
 ## unlock()
+写锁释放时,调用release()方法, 如下:
+```
+    public final boolean release(int arg) {
+        if (tryRelease(arg)) {
+            Node h = head;
+            //当前节点为signal状态，需要唤醒后继节点
+            if (h != null && h.waitStatus != 0)
+                unparkSuccessor(h);
+            return true;
+        }
+        return false;
+    }
+```
++ 释放锁时tryRelease会做最基本的检查, 比如记录的那个获取写锁的线程是否是本线程。
++ 若成功释放, 唤醒下一个阻塞的线程,  unparkSuccessor实现可见<a href="https://kkewwei.github.io/elasticsearch_learning/2018/09/23/ReentrantLock%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/">ReentrantLock源码解读</a>。
+也可以看出, writedLock的获取与释放主要过程与ReentrantLock操作及其相似的, 不同的是尝试获取锁的函数不同。
+
+# 总结
+ReentrantReadWriteLock读锁与写锁可以认为分别是ReentrantLock、CountDownLatch的实现, 不同的是对state赋予的含义不同。
