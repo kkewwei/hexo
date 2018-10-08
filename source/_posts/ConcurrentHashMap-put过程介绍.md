@@ -7,9 +7,8 @@ tags:
 首先放张大图, 对ConcurrentHashMap先有大致的了解。
 <img src="http://owsl7963b.bkt.clouddn.com/ConcurrentHashMap2.png" height="400" width="450"/>
 所有插入的值首先放在table的元素中, 当hash(key)冲突时, 将key-value存放在这个元素的后面, 形成一个链表, 当链表长度达到阈值时, 为减少索引时间, 将链表转变为一个红黑树; 当删除数据时, 红黑树可能会退化为链表; table由于负载高, 也可能会继续扩容。
-ConcurrentHashMap系列将分为以下四个方面进行详细描述:
+ConcurrentHashMap系列将分为以下三个方面进行详细描述:
 <a href="https://kkewwei.github.io/elasticsearch_learning/2017/11/05/ConcurrentHashMap-put%E8%BF%87%E7%A8%8B%E4%BB%8B%E7%BB%8D/">ConcurrentHashMap Put源码介绍</a>
-<a href="https://kkewwei.github.io/elasticsearch_learning/2017/11/08/ConcurrentHashMap-remove%E8%BF%87%E7%A8%8B%E4%BB%8B%E7%BB%8D/">ConcurrentHashMap Remove源码介绍</a>
 <a href="https://kkewwei.github.io/elasticsearch_learning/2017/11/14/ConcurrentHashMap%E6%89%A9%E5%AE%B9%E8%BF%87%E7%A8%8B%E4%BB%8B%E7%BB%8D/">ConcurrentHashMap扩容源码介绍</a>
 <a href="https://kkewwei.github.io/elasticsearch_learning/2017/11/06/ConcurrentHashMap%E7%BA%A2%E9%BB%91%E6%A0%91%E5%8E%9F%E7%90%86%E4%BB%8B%E7%BB%8D/">ConcurrentHashMap红黑树原理介绍</a>
 # 成员变量介绍
