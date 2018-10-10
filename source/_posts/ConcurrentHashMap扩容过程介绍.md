@@ -207,7 +207,7 @@ finishing: table所有元素是否迁移完成。
 + 链表迁移原理如下: `遍历链表每个节点。 若节点的f.hash&n==0成立, 则将节点放在i, 否则, 则将节点放在n+i上面`。
 迁移前, 对该元素进行枷锁。 遍历链表时, 这里使用lastRun变量, 保留的是上次hash的值, 假如整个链表全部节点f.hash&n==0, 那么第二次遍历, 只要找到lastRun的值, 那么认为之后的节点都是相同值, 减少了不必要的f.hash&n取值。遍历完所有的节点后, 此时形成了两条链表, ln存放的是f.hash&n=0的节点, hn存放的是非0的节点, 然后将ln存放在nextTable第i元素的位置, n+i存放在n+i的位置。
 首先放一个张图展示扩容的变化:
-<img src="http://owsl7963b.bkt.clouddn.com/ConcurrentHashMap17.png" height="450" width="650"/>
+<img src="http://owsl7963b.bkt.clouddn.com/ConcurrentHashMap18.png" height="450" width="650"/>
 蓝色节点代表:f.hash&n==0, 绿色节点代表f.hash&n!=0。 最终蓝色的节点仍在存放在(0, n)范围捏, 绿的的节点存放在(n, 2n-1)的范围之内。
 + 迁移链表和红黑树的原理是一样的, 在红黑树中, 我们记录了每个红黑树的first和每个节点的next, 根据这两个元素, 我们可以访问红黑树所有的元素, 红黑树此时也可以是一个链表, 红黑树和链表迁移的过程一样。,红黑树根据迁移后拆分成了hn和ln, 根据链表长度确定链表是红黑树结构还是退化为了链表。
 4.如何确定table所有元素迁移完成:
