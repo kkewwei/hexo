@@ -6,7 +6,7 @@ tags:
 Netty中大于8K的内存是通过PoolChunk来分配的, 小于8k的内存是通过PoolSubpage分配的, 本章将详细描述如何通过PoolSubpage分配小于8K的内存。当申请小于8K的内存时, 会从分配一个8k的叶子节点, 若用不完的话, 存在很大的浪费, 所以通过PoolSubpage来管理8K的内存, 如下图
 <img src="http://owsl7963b.bkt.clouddn.com/PoolSubpage.png" height="400" width="450"/>
 每一个PoolSubpage都会与PoolChunk里面的一个叶子节点映射起来, 然后将PoolSubpage根据用户申请的ElementSize化成几等分, 之后只要再次申请ElementSize大小的内存, 将直接从这个PoolSubpage中分配。
-下面是是PoolSubpage的构造函数:
+下面是PoolSubpage的构造函数:
 ```
    PoolSubpage(PoolSubpage<T> head, PoolChunk<T> chunk, int memoryMapIdx, int runOffset, int pageSize, int elemSize) {
         this.chunk = chunk;

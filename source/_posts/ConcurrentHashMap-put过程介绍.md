@@ -3,7 +3,7 @@ title: ConcurrentHashMap Put源码介绍
 date: 2017-11-05 11:20:55
 tags:
 ---
-在平时项目中, 较多的使用了HashMap容器, 但是它是非线程安全的, 在多线程put的时候, 可能会导致HashMap产生环链而导致死锁。 在并发场景下, 我们就得换成ConcurrentHashMap, 采用分段、红黑树等结构体, 支持多线程同时插入, 又拥有者较高的性能。本文章将围绕put的过程进行详细描述。
+在平时项目中, 较多的使用了HashMap容器, 但是它是非线程安全的, 在多线程put的时候, 可能会导致HashMap产生环链而导致死锁。 在并发场景下, 我们就得换成ConcurrentHashMap, 采用分段、红黑树等结构体, 支持多线程同时插入, 又拥有较高的性能。本文章将围绕put的过程进行详细描述。
 首先放张大图, 对ConcurrentHashMap先有大致的了解。
 <img src="http://owsl7963b.bkt.clouddn.com/ConcurrentHashMap2.png" height="400" width="450"/>
 所有插入的值首先放在table的元素中, 当hash(key)冲突时, 将key-value存放在这个元素的后面, 形成一个链表, 当链表长度达到阈值时, 为减少索引时间, 将链表转变为一个红黑树; 当删除数据时, 红黑树可能会退化为链表; table由于负载高, 也可能会继续扩容。
@@ -14,12 +14,12 @@ ConcurrentHashMap系列将分为以下三个方面进行详细描述:
 # 成员变量介绍
 ConcurrentHashMap拥有出色的性能, 在真正掌握内部结构时, 先要掌握比较重要的成员:
 + LOAD_FACTOR: 负载因子, 默认75%, 当table使用率达到75%时, 为减少table的hash碰撞, tabel长度将扩容一倍。负载因子计算: 元素总个数%table.lengh
-+ TREEIFY_THRESHOLD: 默认8, 当链表长度达到8时, 将结构转变为红黑树
-+ UNTREEIFY_THRESHOLD: 默认6, 红黑树转变为链表的阈值
++ TREEIFY_THRESHOLD: 默认8, 当链表长度达到8时, 将结构转变为红黑树。
++ UNTREEIFY_THRESHOLD: 默认6, 红黑树转变为链表的阈值。
 + MIN_TRANSFER_STRIDE: 默认16, table扩容时, 每个线程最少迁移table的槽位个数。
 + MOVED: 值为-1, 当Node.hash为MOVED时, 代表着table正在扩容
-+ TREEBIN, 置为-2, 代表此元素后接红黑树
-+ nextTable: table迁移过程临时变量, 在迁移过程中将元素全部迁移到nextTable上
++ TREEBIN, 置为-2, 代表此元素后接红黑树。
++ nextTable: table迁移过程临时变量, 在迁移过程中将元素全部迁移到nextTable上。
 + sizeCtl: 用来标志table初始化和扩容的,不同的取值代表着不同的含义:
     0: table还没有被初始化
     -1: table正在初始化
@@ -115,11 +115,11 @@ ConcurrentHashMap拥有出色的性能, 在真正掌握内部结构时, 先要�
 + 根据spread确定key-value的hash值, hash计算过程如下: (h ^ (h >>> 16)) & HASH_BITS, h=key.hashCode(), HASH_BITS=0x7fffffff, 由此可见, 计算出来的hash>0一定成立, 若node.hash<0是, -1(Moved)代表table正在扩容, -2(TREEBIN)代表此元素后接红黑树
 + 检查table是否初始化, 若没有初始化,则开始初始化initTable()。 这里可以看出ConcurrentHashMap使用懒性初始化, 只有在真正插入数据时候才进行扩容。
 + 根据i = (n - 1) & hash))确定需要插入table的位置i:
-1. 若table[i]没有元素, 则将key-value存放进去
+1. 若table[i]没有元素, 则将key-value存放进去。
 2. 若table[i].hash为MOVED, 那么说明table正在进行扩容, 则通过helpTransfer()进行扩容(具体参考<a href="https://kkewwei.github.io/elasticsearch_learning/2017/11/14/ConcurrentHashMap%E6%89%A9%E5%AE%B9%E8%BF%87%E7%A8%8B%E4%BB%8B%E7%BB%8D/">ConcurrentHashMap扩容源码介绍</a>)
 3. 否则开始真正插入数据, 插入数据前, 先将table[i]锁住, 插入数据前, 检查table[i].hash, 若大于0, 说明此元素后接的是链表, 或者是个红黑树。 链表插入采取尾插法, 比较简单; 红黑树的插入详见后续描述。
 4. 在链表插入时, 统计当前链表长度, 若长度超过TREEIFY_THRESHOLD(默认值为8), 则需要将链表转变为红黑树结构(具体参考<a href="https://kkewwei.github.io/elasticsearch_learning/2017/11/06/ConcurrentHashMap%E7%BA%A2%E9%BB%91%E6%A0%91%E5%8E%9F%E7%90%86%E4%BB%8B%E7%BB%8D/">ConcurrentHashMap红黑树原理介绍</a>)
-5. 修改table存放所有元素个数、检查table是否需要扩容等, 详见addCount。 这里感觉代码有些问题, 插入任何一个元素, 无论插在table元素上、还是链表或者红黑树上, 都算对table容量增加了1, 实际上插入链表或者红黑树, 并不会增加table的负载, 这两种情况下, 不应该增加table的负载、而去检查扩容。
+5. 修改table存放所有元素个数、检查table是否需要扩容等, 详见addCount。 这里感觉代码有些问题, 插入任何一个元素, 无论插在table元素上、还是链表或者红黑树上, 都对table容量增加了1, 增加table容量的结果就是可能导致table扩容。 实际上插入链表或者红黑树, 并不会增加table的负载, 这两种情况下, 不应该增加table的负载、而去检查扩容。
 
 ## initTable初始化
 ```
@@ -184,4 +184,4 @@ addCount主要做两个事情: 并发环境下统计ConcurrentHashMap里属性�
 + 若sizeCtl>0, 那么本线程是第一个开始对table进行扩容的, 将sizeCtl=resizeStamp(n)<<16 + 2, 并进行扩容transfer()
 
 # 总结
-ConcurrentHashMap为了加快索引速度和插入并发, 采用由数组+链表+红黑树来存储数据,  数据结构之间能否相互转变。 插入数据时, 会检查table是否初始化, 是否在扩容, 插入的元素位置是否为链表、红黑树, 针对不同的情况采取不同的插入方法。
+ConcurrentHashMap为了加快索引速度和插入并发, 采用由数组+链表+红黑树来存储数据,  数据结构之间能够相互转变。 插入数据时, 会检查table是否初始化, 是否在扩容, 插入的元素位置是否为链表、红黑树, 针对不同的情况采取不同的插入方法。

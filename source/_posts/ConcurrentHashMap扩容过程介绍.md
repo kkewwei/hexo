@@ -3,7 +3,7 @@ title: ConcurrentHashMap扩容源码介绍
 date: 2017-11-14 11:21:07
 tags:
 ---
-在<a href="https://kkewwei.github.io/elasticsearch_learning/2017/11/05/ConcurrentHashMap-put%E8%BF%87%E7%A8%8B%E4%BB%8B%E7%BB%8D/">ConcurrentHashMap Put源码介绍</a>我们讲过, ConcurrentHashMap由三部分构成, table+链表+红黑树, 其中table是一个数组, 既然是数组, 必须要在使用时确定数组的大小, 当根据table存放的元素过多时, 就需要扩容, 以减少碰撞发生次数, 本文就讲解扩容的过程。扩容检查主要发生在插入元素(<a href="https://kkewwei.github.io/elasticsearch_learning/2017/11/05/ConcurrentHashMap-put%E8%BF%87%E7%A8%8B%E4%BB%8B%E7%BB%8D/">ConcurrentHashMap Put源码介绍</a> putVal())的过程:
+在<a href="https://kkewwei.github.io/elasticsearch_learning/2017/11/05/ConcurrentHashMap-put%E8%BF%87%E7%A8%8B%E4%BB%8B%E7%BB%8D/">ConcurrentHashMap Put源码介绍</a>我们讲过, ConcurrentHashMap由三部分构成, table+链表+红黑树, 其中table是一个数组, 既然是数组, 必须要在使用时确定数组的大小, 当table存放的元素过多时, 就需要扩容, 以减少碰撞发生次数, 本文就讲解扩容的过程。扩容检查主要发生在插入元素(<a href="https://kkewwei.github.io/elasticsearch_learning/2017/11/05/ConcurrentHashMap-put%E8%BF%87%E7%A8%8B%E4%BB%8B%E7%BB%8D/">ConcurrentHashMap Put源码介绍</a> putVal())的过程:
 + 一个线程插完元素后, 检查table使用率, 若超过阈值, 调用transfer进行扩容
 + 一个线程插入数据时, 发现table对应元素的hash=MOVED, 那么调用helpTransfer()协助扩容。
 
@@ -36,11 +36,11 @@ final Node<K,V>[] helpTransfer(Node<K,V>[] tab, Node<K,V> f) { //table扩容
 ```
 主要做了如下事情:
 + 检查是否扩容完成
-扩容期间c >>> RESIZE_STAMP_SHIFT) == rs是成立的, 扩容完成后, transferIndex <= 0是成立的。而这里的sc == rs + 1和sc == rs + MAX_RESIZERS并没有看到什么意义, 网上说的是检查扩容结束和扩容现成的控制。但是要是扩容结束, 应该是sc == rs << RESIZE_STAMP_SHIFT + 1才对, 若是对线程控制, sc == rs + MAX_RESIZERS里面sc=resizeStamp(n)<<RESIZE_STAMP_SHIFT+2, 是一个大于-2^16的负数, 就算每个线程对sc+1, 那么需要2^16才能大于0, 相等基本也是不可能的。
+扩容期间c >>> RESIZE_STAMP_SHIFT == rs是成立的, 扩容完成后, transferIndex <= 0是成立的。而这里的sc == rs + 1和sc == rs + MAX_RESIZERS并没有看到什么意义, 网上说的是检查扩容结束和扩容现成的控制。但是要是扩容结束, 应该是sc == rs << RESIZE_STAMP_SHIFT + 1才对, 若是对线程控制, sc == rs + MAX_RESIZERS里面sc=resizeStamp(n)<<RESIZE_STAMP_SHIFT+2, 是一个大于-2^16的负数, 就算每个线程对sc+1, 那么需要2^16才能大于0, 相等基本也是不可能的。
 + 对sizeCtrl = sizeCtrl+1, 然后调用transfer()进行真正的扩容。
 
 ## 扩容transfer
-扩容的整体步骤就是新建一个nextTab, size是之前的2倍, 将table上的非空元素迁移到nextTab上面去。迁移过程需要将
+扩容的整体步骤就是新建一个nextTab, size是之前的2倍, 将table上的非空元素迁移到nextTab上面去。
 ```
     private final void transfer(Node<K,V>[] tab, Node<K,V>[] nextTab) {
         int n = tab.length, stride;
@@ -205,11 +205,11 @@ finishing: table所有元素是否迁移完成。
 2. 若该元素的hash=MOVED, 代表次table正在处于迁移之中, 跳过。 按道理不会跑着这里的。
 3. 否则说明该元素跟着的是一个链表或者是个红黑树结构, 若hash>0, 则说明是个链表, 若f instanceof TreeBin, 则说明是个红黑树结构。
 + 链表迁移原理如下: `遍历链表每个节点。 若节点的f.hash&n==0成立, 则将节点放在i, 否则, 则将节点放在n+i上面`。
-迁移前, 对该元素进行枷锁。 遍历链表时, 这里使用lastRun变量, 保留的是上次hash的值, 假如整个链表全部节点f.hash&n==0, 那么第二次遍历, 只要找到lastRun的值, 那么认为之后的节点都是相同值, 减少了不必要的f.hash&n取值。遍历完所有的节点后, 此时形成了两条链表, ln存放的是f.hash&n=0的节点, hn存放的是非0的节点, 然后将ln存放在nextTable第i元素的位置, n+i存放在n+i的位置。
+迁移前, 对该元素进行加锁。 遍历链表时, 这里使用lastRun变量, 保留的是上次hash的值, 假如整个链表全部节点f.hash&n==0, 那么第二次遍历, 只要找到lastRun的值, 那么认为之后的节点都是相同值, 减少了不必要的f.hash&n取值。遍历完所有的节点后, 此时形成了两条链表, ln存放的是f.hash&n=0的节点, hn存放的是非0的节点, 然后将ln存放在nextTable第i元素的位置, n+i存放在n+i的位置。
 首先放一个张图展示扩容的变化:
 <img src="http://owsl7963b.bkt.clouddn.com/ConcurrentHashMap18.png" height="450" width="650"/>
-蓝色节点代表:f.hash&n==0, 绿色节点代表f.hash&n!=0。 最终蓝色的节点仍在存放在(0, n)范围捏, 绿的的节点存放在(n, 2n-1)的范围之内。
-+ 迁移链表和红黑树的原理是一样的, 在红黑树中, 我们记录了每个红黑树的first和每个节点的next, 根据这两个元素, 我们可以访问红黑树所有的元素, 红黑树此时也可以是一个链表, 红黑树和链表迁移的过程一样。,红黑树根据迁移后拆分成了hn和ln, 根据链表长度确定链表是红黑树结构还是退化为了链表。
+蓝色节点代表:f.hash&n==0, 绿色节点代表f.hash&n!=0。 最终蓝色的节点仍在存放在(0, n)范围里, 绿的的节点存放在(n, 2n-1)的范围之内。
++ 迁移链表和红黑树的原理是一样的, 在红黑树中, 我们记录了每个红黑树的first(这个节点不是hash最小的节点)和每个节点的next, 根据这两个元素, 我们可以访问红黑树所有的元素, 红黑树此时也是一个链表, 红黑树和链表迁移的过程一样。红黑树根据迁移后拆分成了hn和ln, 根据链表长度确定链表是红黑树结构还是退化为了链表。
 4.如何确定table所有元素迁移完成:
 ```
                 //表示当前线程迁移完成了
@@ -223,4 +223,4 @@ finishing: table所有元素是否迁移完成。
 ```
 第一个线程开始迁移时, 设置了sizeCtl= resizeStamp(n) << RESIZE_STAMP_SHIFT+2, 此后每个新来帮助迁移的线程都会sizeCtl=sizeCtl+1, 完成迁移后,sizeCtl-1, 那么只要有一个线程还处于迁移状态, 那么sizeCtl> resizeStamp(n) << RESIZE_STAMP_SHIFT+2一直成立, 当只有最后一个线程完成迁移之后, 等式两边才成立。 可能大家会有疑问, 第一个线程并没有对sizeCtl=sizeCtl+1, 此时完成后再减一, 那不是不相等了吗, 注意这里, sizeCtl在减一前, 将值赋给了sc, 等式比较的是sc。
 # 总结
-table扩容过程就是讲table元素迁移到新的table上, 在元素迁移时, 可以并发完成, 加快了迁移速度, 同时不至于阻塞线程。所有元素迁移完成后, 旧的table直接丢失, 直接使用新的table。
+table扩容过程就是将table元素迁移到新的table上, 在元素迁移时, 可以并发完成, 加快了迁移速度, 同时不至于阻塞线程。所有元素迁移完成后, 旧的table直接丢失, 直接使用新的table。

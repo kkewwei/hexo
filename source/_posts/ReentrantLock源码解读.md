@@ -1,7 +1,7 @@
 ---
 title: ReentrantLock源码解读
-date: 2018-09-23 19:47:30
-tags:
+date: 2017-07-23 19:47:30
+tags: ReentrantLock
 ---
 ReentrantLock作为线程之间相互通信的工具, 在实际项目中较多的被使用到, 了解ReentrantLock, 就不得不提AbstractQueuedSynchronizer(AQS), 本文章将对这两个类展开详述。
 基本使用如下:

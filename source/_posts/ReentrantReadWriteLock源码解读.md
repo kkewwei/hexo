@@ -1,6 +1,6 @@
 ---
 title: ReentrantReadWriteLock源码解读
-date: 2018-09-28 06:18:19
+date: 2017-07-28 06:18:19
 tags:
 ---
 首先回顾下ReentrantLock、CountDownLatch的区别: ReentrantLock是互斥锁, CountDownLatch是共享锁, 有没有哪种锁能够部分场景互斥, 部分场景共享呢, 那就是本文的主角:ReentrantReadWriteLock, 也是以AQS为基础实现的第三种应用。 要注意, ReentrantReadWriteLock与ReentrantLock没有一点关系。基本使用如下:
@@ -169,7 +169,7 @@ readWriteLock.writeLock().lock();
 尝试获取流程如下:
 <img src="http://owsl7963b.bkt.clouddn.com/ReetrantReadWriteLock1.png" height="250" width="700"/>
 ### 加入阻塞队列
-加入阻塞队列调用的是doAcquireShared, 大致实现可参考<a href="https://kkewwei.github.io/elasticsearch_learning/2018/09/24/CountDownLatch%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/">CountDownLatch源码解读</a>doAcquireSharedInterruptibly(), 这里添加的节点的nextWaiter为SHARED, 表示该节点唤醒换后, 会继续向后继节点传播该信号
+加入阻塞队列调用的是doAcquireShared, 大致实现可参考<a href="https://kkewwei.github.io/elasticsearch_learning/2017/08/24/CountDownLatch%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/">CountDownLatch源码解读</a>doAcquireSharedInterruptibly(), 这里添加的节点的nextWaiter为SHARED, 表示该节点唤醒换后, 会继续向后继节点传播该信号
 ## unlock()
 通过unlock()释放读锁, 首先进入sync.releaseShared(1)释放:
 ```
@@ -221,7 +221,7 @@ readWriteLock.writeLock().lock();
 + 反之, 修改readHolds里面关于当前线程的获取锁情况, cachedHoldCounter是为了减少ThreadLocal.get()的访问次数。
 + 开始修改state读锁的标志, 这里使用for是为了保证失败后的尝试。
 若此时读锁已经全部释放, 那么返回true, 表明可以唤醒阻塞队列的线程了。
-唤醒阻塞队列的线程过程doReleaseShared, 具体过程请看<a href="https://kkewwei.github.io/elasticsearch_learning/2018/09/24/CountDownLatch%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/">CountDownLatch源码解读</a>doReleaseShared(), 主要做的工作就是检查后续阻塞队列, 若是signal, 那么就唤醒阻塞线程。
+唤醒阻塞队列的线程过程doReleaseShared, 具体过程请看<a href="https://kkewwei.github.io/elasticsearch_learning/2017/08/24/CountDownLatch%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/">CountDownLatch源码解读</a>doReleaseShared(), 主要做的工作就是检查后续阻塞队列, 若是signal, 那么就唤醒阻塞线程。
 可以看出, readLock的获取与释放主要过程与CountDownLatch操作及其相似的, 不同的是尝试获取锁的步骤不同。
 # 写锁
 ## lock()
@@ -280,7 +280,7 @@ readWriteLock.writeLock().lock();
 ```
 + 首先检查是否锁不为0(读+写)。 若读+写不为0, 而写锁为0, 说明有读锁, 本线程获取锁失败; 或者写锁也不为0, 并且获取写锁的那个线程不是本线程, 说明不是写线程的重入,也获取锁失败。 若以上两步有成功的话, 则获取锁成功。
 + 反正则说明当前state=0(没有读+写线程), 那么成功获取到锁。 writerShouldBlock()对于写锁始终未false。
-再来看第二步, 也就是说明本线程没有获取到锁, 那么将本线程加入阻塞队里等待唤醒, nextWaiter设置为EXCLUSIVE,  acquireQueued(addWaiter(Node.EXCLUSIVE), arg))具体怎么实现请去查看<a href="https://kkewwei.github.io/elasticsearch_learning/2018/09/28/ReentrantReadWriteLock%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/">ReentrantReadWriteLock源码解读</a>acquireQueued()
+再来看第二步, 也就是说明本线程没有获取到锁, 那么将本线程加入阻塞队里等待唤醒, nextWaiter设置为EXCLUSIVE,  acquireQueued(addWaiter(Node.EXCLUSIVE), arg))具体怎么实现请去查看<a href="https://kkewwei.github.io/elasticsearch_learning/2017/08/28/ReentrantReadWriteLock%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/">ReentrantReadWriteLock源码解读</a>acquireQueued()
 第三步也很简单, 就是把中断信号向外传递。
 ## unlock()
 写锁释放时,调用release()方法, 如下:
@@ -297,7 +297,7 @@ readWriteLock.writeLock().lock();
     }
 ```
 + 释放锁时tryRelease会做最基本的检查, 比如记录的那个获取写锁的线程是否是本线程。
-+ 若成功释放, 唤醒下一个阻塞的线程,  unparkSuccessor实现可见<a href="https://kkewwei.github.io/elasticsearch_learning/2018/09/23/ReentrantLock%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/">ReentrantLock源码解读</a>。
++ 若成功释放, 唤醒下一个阻塞的线程,  unparkSuccessor实现可见<a href="https://kkewwei.github.io/elasticsearch_learning/2017/07/23/ReentrantLock%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/">ReentrantLock源码解读</a>。
 也可以看出, writedLock的获取与释放主要过程与ReentrantLock操作及其相似的, 不同的是尝试获取锁的函数不同。
 
 # 总结
