@@ -3,7 +3,7 @@ title: CountDownLatch源码解读
 date: 2017-08-24 16:47:06
 tags:
 ---
-CountDownLatch也是线程同步的一个工具, 底层也是使用AQS(参考<a href="https://kkewwei.github.io/elasticsearch_learning/2018/09/23/ReentrantLock%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/">ReentrantLock源码解读</a>)来进行锁的互斥。
+CountDownLatch也是线程同步的一个工具, 底层也是使用AQS(参考<a href="https://kkewwei.github.io/elasticsearch_learning/2017/07/23/ReentrantLock%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/">ReentrantLock源码解读</a>)来进行锁的互斥。
 CountDownLatch与ReentrantLock的主要区别是:
 + CountDownLatch是一个共享锁, ReentrantLock是一个独占锁。
 + CountDownLatch中state初始值为n, 代表一个锁被分成了n份。 好比门钥匙, 有一个门需要n份钥匙聚齐后才能打开。 若门打开后, 第一个通过的那个人可以告诉排队等待的人, 然后依次经过。而ReentrantLock中state为0, 表示锁没有被占用, 比如有一个很窄的门, 每次只能通过一个人, 虽拥有那个钥匙(state=1), 谁才能过那道门。 若有很多人等, 那么就要排队了。 若新来一个人来时, 门恰好是开着的, 他能忽略排队的人过去的话, 这就是非公平锁, 若需要进入等待队列的话, 那就是公平锁。
@@ -66,7 +66,7 @@ countDown()对state减1一:
     }
 ```
 这个函数在countDown()和await()中都会被调用(在doAcquireSharedInterruptibly()中, 当阻塞线程从LockSupport.park(this)中醒来, 就会调用), 注意这里是一个死循环, 从头结点开始检查每个node的waitStatus, 直到等待队列没有要唤醒的线程为止, 主要做了如下判断:
-+ 若节点waitStatus为signal, 那么就设置当前节点为0(初始化节点), 并且通过unparkSuccessor()唤醒等待队里里面的后继节点(该函数可以参考<a href="https://kkewwei.github.io/elasticsearch_learning/2018/09/23/ReentrantLock%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/">ReentrantLock源码解读</a>)。
++ 若节点waitStatus为signal, 那么就设置当前节点为0(初始化节点), 并且通过unparkSuccessor()唤醒等待队里里面的后继节点(该函数可以参考<a href="https://kkewwei.github.io/elasticsearch_learning/2017/07/23/ReentrantLock%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/">ReentrantLock源码解读</a>)。
 + 若当前节点waitStatus为0是(初始化状态, 比如刚将头结点从signal变成了0), 那么设置h为PROPAGATE, 表示状态需要向后传递。 实际查找代码, 并没有发现哪里显示使用Node.PROPAGATE这个条件的, 这步实际并没有看出存在的意义。
 + 若别的线程唤醒后, 做的一件事就是调用setHead(node), 重新设置head, 说明本次唤醒是成功的, 本线程再继续唤醒后续阻塞节点 。
 + 若h==head, 说明tail==head, 所有节点已经唤醒。那么此时才可以退出。
@@ -123,7 +123,7 @@ await()实际就是检查state是否为0, 若不为0, 那么本节点就加入�
 <img src="http://owsl7963b.bkt.clouddn.com/CountDownLatch1.png" height="200" width="450"/>
 + 开始自旋, 进行判断:
 1. 若当前节点的前继节点是head, 并且state=0, 那么说明该线程获取到了锁, 重新设置head, 并且向后传播(setHeadAndPropagate)。
-2. 通过调用shouldParkAfterFailedAcquire判断是否可以直接睡眠(可参考<a href="https://kkewwei.github.io/elasticsearch_learning/2018/09/23/ReentrantLock%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/">ReentrantLock源码解读</a>), 若可以的话, 就直接去睡眠。
+2. 通过调用shouldParkAfterFailedAcquire判断是否可以直接睡眠(可参考<a href="https://kkewwei.github.io/elasticsearch_learning/2017/07/23/ReentrantLock%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/">ReentrantLock源码解读</a>), 若可以的话, 就直接去睡眠。
 + 若被别人唤醒, 调用tryAcquireShared(), 这里仅仅是检测state是否为0, 所以不存在强锁。
 向后传播通过setHeadAndPropagate()完成, 也是比较简单的:
 ```
