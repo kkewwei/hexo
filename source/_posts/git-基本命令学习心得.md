@@ -15,6 +15,8 @@ git rebase是用来更改提交的基, 通过重新在当前分支提交一连�
 -i参数使rebase将于用户交互的形式完成merge, 根据这个参数, 用户可以完成多次提交顺序的复制、删除、编辑commit、修改提交顺序等一系列操作。
 `git:(dev): git rebase -i master`之后, 将弹出这样的界面:
 <img src="http://pgagp8vnu.bkt.clouddn.com/git_rebase5.png" height="350" width="450"/>
+<img src="http://pgagp8vnu.bkt.clouddn.com/git_rebase5.png" height="350" width="450"/>
+
 红框1说明dev分支从master分支产生之后, 进行了三次提交, 这三次提交会和master最新的提交分别顺序进行合并。 红框1里面每行分为三部分:
 + 操作action
 + commit hash值
