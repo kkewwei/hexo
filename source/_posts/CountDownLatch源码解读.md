@@ -72,7 +72,7 @@ countDown()对state减1一:
 + 若h==head, 说明tail==head, 所有节点已经唤醒。那么此时才可以退出。
 需要知道的是, 若节点对应的线程从等待队列中唤醒, 节点此时并没有从等待队列中去掉, 实际在await()中从等待队列中去掉而被回收的。
 释放一个锁的整体过程如下:
-<img src="http://owsl7963b.bkt.clouddn.com/CountDownLatch3.png" height="250" width="700"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/CountDownLatch3.png" height="250" width="700"/>
 
 
 ## await()
@@ -120,7 +120,7 @@ await()实际就是检查state是否为0, 若不为0, 那么本节点就加入�
 ```
 注意该函数中p.next = null操作, 此时p已经从等待队列链中完全脱离了, 该节点就可以等待gc回收了。该函数做了如下事情:
 + 首先将该节点以SHARED方式创建节点, 并加入等待队列。在addWaiter()中实现, 参数为Node.SHARED, 此时等待队列如下:
-<img src="http://owsl7963b.bkt.clouddn.com/CountDownLatch1.png" height="200" width="450"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/CountDownLatch1.png" height="200" width="450"/>
 + 开始自旋, 进行判断:
 1. 若当前节点的前继节点是head, 并且state=0, 那么说明该线程获取到了锁, 重新设置head, 并且向后传播(setHeadAndPropagate)。
 2. 通过调用shouldParkAfterFailedAcquire判断是否可以直接睡眠(可参考<a href="https://kkewwei.github.io/elasticsearch_learning/2017/07/23/ReentrantLock%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/">ReentrantLock源码解读</a>), 若可以的话, 就直接去睡眠。
@@ -156,7 +156,7 @@ await()实际就是检查state是否为0, 若不为0, 那么本节点就加入�
 ```
 首先修改头结点, 其次判断判断后继节点是否是共享的(nextWaiter == SHARED), 前面可知, 每个线程构造等待节点时, 传递的nextWaiter=SHARED, 也恰好满足条件。共享锁唤醒操作在await()里有介绍(doReleaseShared())。
 获取所得过程如下:
-<img src="http://owsl7963b.bkt.clouddn.com/CountDownLatch4.png" height="250" width="800"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/CountDownLatch4.png" height="250" width="800"/>
 
 
 ## 超时等待

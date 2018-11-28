@@ -4,7 +4,7 @@ date: 2018-07-20 18:48:20
 tags:
 ---
 Netty分配内存(0~16M)与回收主要是在PoolChunk上完成的, 在内存分配时希望是有序的。当没有内存可分配时, 一次申请到16M PoolChunk内存, 用户实际使用时可能一次性不能使用16M, 所以逻辑上将PoolChunk划分成不同的块, 使用平衡二叉树进行管理内存的分配, 构建的二叉树结构如下:
-<img src="http://owsl7963b.bkt.clouddn.com/PoolChunk1.png" height="400" width="450"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/PoolChunk1.png" height="400" width="450"/>
 该二叉树将PoolChunk分11层, 第一层为1个16M, 第二层为2个8MB,第三层为4个4MB的内存块, 直到第11层为2048个8KB的内存块,  8kb的内存块称之为page。
 + 如果我们申请16M的内存, 那么将直接在该二叉树第一层申请。
 + 若申请32K的内存, 那么在该二叉树第8层申请。
@@ -46,7 +46,7 @@ Netty分配内存(0~16M)与回收主要是在PoolChunk上完成的, 在内存分
     PoolChunkList<T> parent;
 ```
 当我们需要分配内存时, 会在二叉树上查找满足大小的节点, 我们需要考虑的一个问题: 若申请了第11层下标为2048节点的8k内存, 下标为1024的父节点怎么才能避免被不被16k的申请所申请到呢?
-<img src="http://owsl7963b.bkt.clouddn.com/PoolChunke%20allocation.png" height="400" width="450"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/PoolChunke%20allocation.png" height="400" width="450"/>
 Netty为每一层分配的一个层号, 根据层号可以直接获取该节点剩余最大可分配的内存空间。
 当第11层下标为2048的节点被分配出去:
 1. 则该节点的层号被修改为12, 表示该节点不可再分配。
@@ -130,7 +130,7 @@ Netty为每一层分配的一个层号, 根据层号可以直接获取该节点�
 1. 从根节点开始遍历, 首先检查第1层的层号, 若大于申请的层号, 那么该节点不够申请的大小, 直接退出。(`若不退出的话, 那就意味该二叉树一定可以找到大小为d层号的节点`, 并且在该节点的下标一定>=2^d)
 2. 若当前节点层数<d, 或者当前节点的下标 < 2^d, 那么继续下一层左孩子节点查找, 直到找到某一个节点的层数==目前层数d, 则完成查找。若发现该节点剩余大小不够分配, 则在兄弟节点继续查找。
 如下图, 当查找层号为11的节点, 找到符合下标id>=x 2^11的节点 && 层号 == 11的节点 , 只能在下标为2049的那个节点。
-<img src="http://owsl7963b.bkt.clouddn.com/PoolChunke_allocation_select.png" height="300" width="350"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/PoolChunke_allocation_select.png" height="300" width="350"/>
 其中 (id & initial) == 0) 等价于id <2^d, 作用: 若当前节点的下标< 2^s, 则会继续在当前节点的孩子节点查找。
 3. 将成功找到的那个节点层号标为不可分配unusable, 意味着已经分配出去了。
 4. 更新该节点的所有祖父父节点层号:

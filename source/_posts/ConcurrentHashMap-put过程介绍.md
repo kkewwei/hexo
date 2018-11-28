@@ -5,7 +5,7 @@ tags:
 ---
 在平时项目中, 较多的使用了HashMap容器, 但是它是非线程安全的, 在多线程put的时候, 可能会导致HashMap产生环链而导致死锁。 在并发场景下, 我们就得换成ConcurrentHashMap, 采用分段、红黑树等结构体, 支持多线程同时插入, 又拥有较高的性能。本文章将围绕put的过程进行详细描述。
 首先放张大图, 对ConcurrentHashMap先有大致的了解。
-<img src="http://owsl7963b.bkt.clouddn.com/ConcurrentHashMap2.png" height="400" width="450"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/ConcurrentHashMap2.png" height="400" width="450"/>
 所有插入的值首先放在table的元素中, 当hash(key)冲突时, 将key-value存放在这个元素的后面, 形成一个链表, 当链表长度达到阈值时, 为减少索引时间, 将链表转变为一个红黑树; 当删除数据时, 红黑树可能会退化为链表; table由于负载高, 也可能会继续扩容。
 ConcurrentHashMap系列将分为以下三个方面进行详细描述:
 <a href="https://kkewwei.github.io/elasticsearch_learning/2017/11/05/ConcurrentHashMap-put%E8%BF%87%E7%A8%8B%E4%BB%8B%E7%BB%8D/">ConcurrentHashMap Put源码介绍</a>

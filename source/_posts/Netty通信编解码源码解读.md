@@ -195,7 +195,7 @@ LengthFieldBasedFrameDecoder作为ByteToMessageDecoder的父类, 它只用定义
 + discardingTooLongFrame: 当帧解析出来的帧内容长度 > maxFrameLength时,并且剩余缓存可读字段 < 解析的帧长度, 需要discardingTooLongFrame置位true,  意味着下次接收的帧需要继续丢弃,当前帧处于丢弃模式。
 + tooLongFrameLength: 超过长度限制maxFrameLength的帧长度
 + bytesToDiscard: 对于下次接收的数据中需要继续丢弃的byte长度。 当接收的帧长度大于阈值, 会丢弃该帧及内容
-关系如下:<img src="http://owsl7963b.bkt.clouddn.com/Thrift%E5%B8%A7.png"/>
+关系如下:<img src="https://kkewwei.github.io/elasticsearch_learning/img/Thrift%E5%B8%A7.png"/>
 也可<a href="https://blog.csdn.net/u010853261/article/details/55803933"> 参考/a>
 其中:
 + head1和head2可以由用户自定义语义。

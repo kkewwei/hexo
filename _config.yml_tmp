@@ -61,7 +61,7 @@ ga_domain:
 # Sidebar settings
 sidebar-about-description: 心之所向，身将往之
 #sidebar-avatar:     # use absolute URL
-sidebar-avatar: http://owqu66xvx.bkt.clouddn.com/Free-Converter.com-timg-26972045.jpg
+sidebar-avatar: https://kkewwei.github.io/elasticsearch_learning/Free-Converter.com-timg-26972045.jpg
 
 # Featured Tags
 featured-tags: true                     # whether or not using Feature-Tags
@@ -141,7 +141,7 @@ clip-avatar: "?imageView2/2/w/300/h/300/interlace/1/q/90"
 clip-home-post-bg: "?imageView2/1/w/800/h/300/interlace/1/q/70"
 
 # post default images
-post-default-img: http://owqu66xvx.bkt.clouddn.com/backgroud.jpg
+post-default-img: https://kkewwei.github.io/elasticsearch_learning/backgroud.jpg
 post-default-img-mobile: #移动端显示的图片
 
 # search api , set your custom key

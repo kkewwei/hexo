@@ -33,7 +33,7 @@ Netty内存主要分为两种: DirectByteBuf和HeapByteBuf, 实际上就是堆�
 
 # PoolArena
 PoolArena作为Netty底层内存池核心管理类, 主要原理是首先申请一些内存块, 不同的成员变量来完成不同大小的内存块分配。下图描述了Netty最重要的成员变量:
-<img src="http://owsl7963b.bkt.clouddn.com/PoolArea.png" height="400" width="450"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/PoolArea.png" height="400" width="450"/>
 netty将池化内存块划分为3个类型:
 ```
     enum SizeClass {

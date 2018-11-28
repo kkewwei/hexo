@@ -167,7 +167,7 @@ readWriteLock.writeLock().lock();
 + 检查读锁线程是否超过阈值65536
 + 设置读锁的state.
 尝试获取流程如下:
-<img src="http://owsl7963b.bkt.clouddn.com/ReetrantReadWriteLock1.png" height="250" width="700"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/ReetrantReadWriteLock1.png" height="250" width="700"/>
 ### 加入阻塞队列
 加入阻塞队列调用的是doAcquireShared, 大致实现可参考<a href="https://kkewwei.github.io/elasticsearch_learning/2017/08/24/CountDownLatch%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/">CountDownLatch源码解读</a>doAcquireSharedInterruptibly(), 这里添加的节点的nextWaiter为SHARED, 表示该节点唤醒换后, 会继续向后继节点传播该信号
 ## unlock()

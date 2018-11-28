@@ -6,7 +6,7 @@ tags:
 NioEventLoop在为数据分配存放的内存时, 会首先尝试从线程本地缓存中去申请, 只有当本地缓存中申请失败, 才会考虑从全局内存中申请, 本地缓存的管理者就是PoolThreadCache对象。 Netty自己实现了类似LocalThread的类来充当线程缓存: PoolThreadLocalCache, 本节将充分围绕这两个类的源代码进行描述。
 # PoolThreadCache
 Netty自己进行内存管理, 将内存主要分为Tiny, small, normal等size不等的区间。 在PoolThreadCache中将缓存也按照size进行划分, 下图是PoolThreadCache的内部整体结构图:
-<img src="http://owsl7963b.bkt.clouddn.com/PoolThreadCache2.png" height="400" width="450"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/PoolThreadCache2.png" height="400" width="450"/>
 图中只展示了small类型数组的大小(为4), 而tiny、normal数组的大小分别分32、 3。 每个数据元素代表着缓存不同类型大小的对象。 比如回收size为32B的对象, 将相应的内存块放在tiny类型数组、下标为1 (log(32>>4))的queue中。 本文章大量用到某一级别的缓存块, 举个例子:normal级别的缓存块有[8k, 16k, 32k]。
 下面大致介绍下PoolThreadCache里面的属性作用:
 ```

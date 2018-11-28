@@ -69,7 +69,7 @@ class HelloServerHandler extends SimpleChannelInboundHandler<String> {
   + 一个NioEventLoop可以处理分配给多个Channel(包含NioServerSocketChannel), 是一对多的关系。
   + NioEventLoop里面处理task的线程唯一。
   + Channel与NioEventLoop绑定称之为register。在它的生命周期产生的所有task内只能由固定的某一个NioEventLoop处理。
-<img src="http://owqu66xvx.bkt.clouddn.com/Netty%E6%A6%82%E5%BF%B5.png" />
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/Netty%E6%A6%82%E5%BF%B5.png" />
 
 
 # 具体过程分析
@@ -328,7 +328,7 @@ doRegister()函数将会跑到AbstractNioChannel.doRegister()里面, 如下:
 
 
 自此NioServerSocketChannel已经初始化完成, NioServerSocketChannel拥有的pipeLine的里面的上下文:
-<img src="http://owqu66xvx.bkt.clouddn.com/PipeLine.png" />
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/PipeLine.png" />
 其中第二个Context的handler为ServerBootstrapAcceptor, 它的构造时的代码如下:
 ```
 new ServerBootstrapAcceptor(ch, currentChildGroup, currentChildHandler, currentChildOptions, currentChildAttrs)

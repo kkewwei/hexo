@@ -72,10 +72,10 @@ baidu_analytics: ''
 google_analytics: ''
 #favicon: '/blob/master/img/picture.png'
 favicon: '/elasticsearch_learning/img/ico.png'    #在主题的_config.yml里面配置图标是有效的, 这里没有效果
-#favicon: 'http://owsl7963b.bkt.clouddn.com/ico.png'
+#favicon: 'https://kkewwei.github.io/elasticsearch_learning/ico.png'
 #你的头像url   这个是github 代码的相对路径
-avatar: '/blob/master/img/picture.jpg'
-#avatar: 'http://owqu66xvx.bkt.clouddn.com/Free-Converter.com-timg-26972045.jpg'
+avatar: 'https://kkewwei.github.io/elasticsearch_learning/img/myself.png'
+#avatar: 'https://kkewwei.github.io/elasticsearch_learning/Free-Converter.com-timg-26972045.jpg'
 
 #是否开启分享
 share_jia: true

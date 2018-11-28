@@ -12,7 +12,7 @@ tags:
 4）如果一个节点是红的，则它的两个儿子都是黑的。
 5）对每个节点, 从该节点到其子孙节点的所有路径上包含相同数目的黑节点。
 红黑树示例如下:
-<img src="http://owsl7963b.bkt.clouddn.com/ConcurrentHashMap3.png" height="300" width="350"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/ConcurrentHashMap3.png" height="300" width="350"/>
 ## 链表转化为红黑树
 ```
         TreeBin(TreeNode<K,V> b) {
@@ -113,13 +113,13 @@ tags:
 ```
 首先设置插入的节点为红色, 若插入节点的父节点是黑色的,那么没有打破红黑树的原则, 可以不用调整直接退出, 当且仅当父节点是红色时候才需要调整, 这里主要讨论插入节点的父节点是祖父节点左孩子(又孩子一样)的情况, 分三种情况进行调整:
 case1. 叔叔C是红色的
-<img src="http://owsl7963b.bkt.clouddn.com/ConcurrentHashMap5.png" height="250" width="400"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/ConcurrentHashMap5.png" height="250" width="400"/>
 调整: 父节点B与叔叔节点C变黑, 祖父节点A变红, 调整节点上移到祖父节点A
 case2. 叔叔C是黑色的, 插入节点X是右孩子
-<img src="http://owsl7963b.bkt.clouddn.com/ConcurrentHashMap6.png" height="250" width="400"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/ConcurrentHashMap6.png" height="250" width="400"/>
 调整: 父节点B右旋, 将调整节点指向曾经的自己D, 变成case3的情况
 case3. 叔叔C是黑色的, 插入节点X是左孩子
-<img src="http://owsl7963b.bkt.clouddn.com/ConcurrentHashMap7.png" height="250" width="400"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/ConcurrentHashMap7.png" height="250" width="400"/>
 调整: 祖父节点A右旋, 父节点B变黑, 祖父节A点变红, 调整完成, 退出函数。
 
 ## 红黑树删除后平衡balanceInsertion
@@ -194,16 +194,16 @@ case3. 叔叔C是黑色的, 插入节点X是左孩子
 若删除了红节点, 那么对二叉树没有任何影响, 调整的都是删除节点是黑色的情况; 若删除节点的父节点是红色的,直接变成黑的就over, 这里仅仅讨论删除节点的父节点是左孩子(右孩子类似)的情况.
 这里的x需要看成双重黑色, 平衡的目的是将这个双重黑色分摊到别的节点, 变成单黑色, 调整节点迁移到父节点
 case1: 兄弟是红色的
-<img src="http://owsl7963b.bkt.clouddn.com/ConcurrentHashMap12.png" height="350" width="400"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/ConcurrentHashMap12.png" height="350" width="400"/>
 调整: 情况1: 若无右兄弟, 则将调整节点上移到父节点A; 若有右兄弟C, 对父节点A左旋, 父节点A变成红色, 兄弟节点C变成黑色
 case2: 兄弟是黑色的, 兄弟的两个孩子(存在2个、1个、或者0个)没有一个是红色的
-<img src="http://owsl7963b.bkt.clouddn.com/ConcurrentHashMap13.png" height="250" width="400"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/ConcurrentHashMap13.png" height="250" width="400"/>
 调整: 将兄弟节点C变成红色, 调整节点上移到父节点C。
 case3: 兄弟是黑色的, 兄弟的左孩子是红色。
-<img src="http://owsl7963b.bkt.clouddn.com/ConcurrentHashMap14.png" height="250" width="400"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/ConcurrentHashMap14.png" height="250" width="400"/>
 调整: 右旋兄弟节点C, 兄弟节点左孩子变成黑色, 兄弟节点C变成红色, 变成case4。
 case3: 兄弟是黑色的, 兄弟的右孩子是红色。
-<img src="http://owsl7963b.bkt.clouddn.com/ConcurrentHashMap15.png" height="250" width="400"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/ConcurrentHashMap15.png" height="250" width="400"/>
 调整: 左旋父节点A, 将父节点A的颜色给兄弟节点, 父节点A变成黑色, 调整完成, 退出函数。
 # 总结
 红黑树重点是定义, 每次插入节点或者删除节点都会破坏红黑树的性能, 然后再通过调整修复这些性质就好了。

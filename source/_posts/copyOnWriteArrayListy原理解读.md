@@ -34,6 +34,6 @@ private transient volatile Object[] array;
 + 将新添加元素都放到数组newElements最后。
 + 替换原来数组elements
 过程如下:
-<img src="http://pgagp8vnu.bkt.clouddn.com/CopyOnWriteArrayList.png" height="300" width="350"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/CopyOnWriteArrayList.png" height="300" width="350"/>
 ## 总结
 CopyOnWriteArrayList在添加元素时, 需要获取锁, 可知互斥写入, 并发为1。 若多线程同时写入, 效率非常低下, 而且会出现线程复制数组而直接丢弃原来数组, 导致大量gc。CopyOnWriteArrayList主要在查多写少的情况下。

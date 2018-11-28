@@ -492,7 +492,7 @@ decode函数主要检查该解析请求是否是HttpRequest或者HttpContent, �
 2. 直到检测到content为最后一个content(类型为LastHttpContent), 则将CompositeByte放入out中继续向里面传递。
 
 至此,一个完整地AggregatedFullHttpRequest已经解析出来了,组成如下:
-<img src="http://owqu66xvx.bkt.clouddn.com/DefaultLastHttpContent.png" />
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/DefaultLastHttpContent.png" />
 # 附
 如何将Composite转换为一个连续的堆内buf呢?
 通过Unpooled.copiedBuffer(request.content())方法即可。

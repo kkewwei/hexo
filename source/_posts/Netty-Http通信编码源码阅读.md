@@ -4,7 +4,7 @@ date: 2018-05-04 00:02:39
 tags:
 ---
 解码过程仍以<a href="https://kkewwei.github.io/elasticsearch_learning/2018/04/16/Netty-Http%E9%80%9A%E4%BF%A1%E8%A7%A3%E7%A0%81%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB/">Netty Http通信源码一(解码)阅读</a>提供的示例为例, 编码发送的主体DefaultFullHttpResponse如下:
-<img src="http://owsl7963b.bkt.clouddn.com/DefaultFullHttpResponse.png" />
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/DefaultFullHttpResponse.png" />
 涉及到的ChannelOutboundHandler类有:HttpContentCompressor、HttpObjectEncoder, 及其父类。 本wiki仍然以数据的流向作为引导线。
 开始向外发送数据时, 如下:
 ```
@@ -255,7 +255,7 @@ endoce函数如下, 其中msg为DefaultFullHttpResponse, 包含了header和conte
 ```
 主要做了如下事情:
 + 首先在determineWrapper判断使用哪种压缩编码, 使用优先级gzip>deflate
-+ 返回EmbeddedChannel, 我们需要注意该channel里面通过ZlibCodecFactory.newZlibEncoder()方式添加了一个handler, 该返回EmbeddedChannel的pipeline结构如下:<img src="http://owsl7963b.bkt.clouddn.com/GzipPipline.png" />
++ 返回EmbeddedChannel, 我们需要注意该channel里面通过ZlibCodecFactory.newZlibEncoder()方式添加了一个handler, 该返回EmbeddedChannel的pipeline结构如下:<img src="https://kkewwei.github.io/elasticsearch_learning/img/GzipPipline.png" />
 对gzip编码感兴趣的话, 可以看下JdkZlibEncoder.encode关于编码的细节。
 5.向返回值headler中添加 content-encoding:gzip
 6.封装header, result_code, http_version, 产生一个DefaultHttpResponse, 放入out.
@@ -286,7 +286,7 @@ private boolean encodeContent(HttpContent c, List<Object> out) {
 + 在finishEncode()中会产生DefaultHttpContent, 里面存放的是gzip压缩的footer(可读才10 byte), 具体byte见JdkZlibEncoder.finishEncode里面描述。
 7.2.向out中写入LastHttpContent.EMPTY_LAST_CONTENT, 代表这个帧内容结束。
 这样整个输出帧的内容存放在out中, 拥有的对象如下:
-<img src="http://owsl7963b.bkt.clouddn.com/HttpOutPutResponse.png" />
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/HttpOutPutResponse.png" />
 其中:
 + DefaultHttpResponse: 存放的是Http/1.1 status, Header等
 + 第一个DefaultHttpContent存放的是压缩的内容。
@@ -440,7 +440,7 @@ state初始值为ST_INIT, 该函数主要做了如下操作:
 1) 可以看出实际编码后存放的是 key: value\r\n; 注意冒号后面是空格
 2) 通过CharsetUtil.US_ASCII编码key和value
 + 再接着写入[CRLF]。 其实可以看出, http response byte每部分内容都是以[CRLF]作为分隔符, 格式如下:
-<img src="http://owsl7963b.bkt.clouddn.com/HttpResponse_Byte.png" />
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/HttpResponse_Byte.png" />
 
 然后根据header部分来改变state状态, 一般state会被置为ST_CONTENT_NON_CHUNK。根据MessageToMessageEncoder.write()可知, 编码完DefaultHttpResponse, 就调用DefalueChannalHadlerContext.write继续向外写, 后面会详细讲些该部分。
 2.第二、三次、四次传递过来的是DefaltHttpContent, 将进入ST_CONTENT_NON_CHUNK部分。
@@ -473,7 +473,7 @@ state初始值为ST_INIT, 该函数主要做了如下操作:
 + 在这个函数中, 我们需要了解的是: 若直接是最外层发送, 那么filterOutboundMessage将会把msg转变为直接内存buf。
 + 通过ChannelOutboundBuffer.addMessage(msg, size, promise), 将输出结果暂时缓存起来, 形成一个链再批量发送。
 我们需要了解下ChannelOutboundBuffer这个类, 它作为输出内容暂时缓存的地方, 维护着输出数据组成的链, 结构如下:
-<img src="http://owsl7963b.bkt.clouddn.com/ChannelOutboundBuffer.png" />
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/ChannelOutboundBuffer.png" />
 flushEntry 表示即将刷新的位置
 unflushEntry: 每次调用addFlush()将unflushEntry赋值给flushEntry, 才算真正开始flush数据了。
 tailEntry: 当前缓存message时, 新增message都是尾部追加。 我们需要知道, 尾部追加并没有限制, 也就是说, netty本身并不会为我们做限制写入, 它只是负责通知我们达到内存使用水位上限了。 我们需要自己在函数中控制写入数据, 比如在发送数据时, 当且仅当channel.isWritable()为true才继续发送数据。

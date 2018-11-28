@@ -40,11 +40,11 @@ AbstractQueuedSynchronizer实现了FIFO队列，该队列存放着目前阻塞�
 |thread|当前节点所拥有的线程|
 |nextWaiter|表明本线程和下游公用一个获取获取锁的信号, 该线程被唤醒后, 该线程?又顺便把下一个节点也唤醒, 比如CountDownLatch中, 上游把锁释放了, 会向后继续传递释放锁的信号。
 nextWaiter=signal与waitStatus=shared的区别是: waitStatus=signal主要体现在线程主动调用释放锁操作unlock()后, 去唤醒等待队列中第一个线程。 waitStatus=shared体现在, 若当前线程尝试获取锁被阻塞后, 被别的线程唤醒后, 当前线程把获取锁的信号向后传递, 也去主动唤醒阻塞的线程。
-<img src="http://owsl7963b.bkt.clouddn.com/AQS6.png" height="200" width="600"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/AQS6.png" height="200" width="600"/>
 上图可知, 当share时, 线程在获取锁后, 首先唤醒下一个线程再继续run运行; 而signal时, 线程在获取锁后, 首先运行, 在run运行中, 通过主动调用unlock()来唤醒下一个阻塞的线程。
 
 AQS中等待锁的线程队列与运行线程结构如下:
-<img src="http://owsl7963b.bkt.clouddn.com/AQS.png" height="250" width="450"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/AQS.png" height="250" width="450"/>
 ### ReentrantLock详解
 ReentrantLock作为可重入的独享锁, 分为两类, 公平锁FairSync和非公平锁NonfairSync, 公平的体现在于: 当已经有线程处于等待状态时(等待队列不为空), 新来需要获取锁的线程能否可能插队先获取锁, 可以的话, 就是非公平锁; 不能立马获取到锁, 而必须排队的就是公平锁。
 本文就以公平锁的获取与释放作为主线进行讲解。
@@ -140,7 +140,7 @@ FairSync尝试获取锁的过程比较简单: 若status为0, 那么说明锁还�
     }
 ```
 注意这里for()死循环, 直到当前节点构建出来了等待队列才会退出, 否则不停地重试(重试的原因是可能其他线程也在构造或者向等待线程插入节点, 允许操作失败), 构建完成后, 等待队列如下:
-<img src="http://owsl7963b.bkt.clouddn.com/AQS1.png" height="200" width="250"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/AQS1.png" height="200" width="250"/>
 这里需要注意的是, 最开始的的时候, 会虚构出来了一个Node()作为head节点, 可以理解代表着当前拥有锁的那个线程对应的节点。
 #### 设置等待队列
 线程加入等待队列后, 是不能够立马跑去睡眠的, 还需要检查等待队列前继节点是否符合要求, 只有当前继节点waitState为SIGNAL, 那么本节点才可以去睡觉:
@@ -212,7 +212,7 @@ FairSync尝试获取锁的过程比较简单: 若status为0, 那么说明锁还�
 2. 若前继节点为cancel状态, 那么向前找, 直到找到一个不为cancel的节点, 并将为cancel的节点从整个等待队列中去掉, 以便gc回收。
 3. 若找到一个非signal、非cancel的前继节点, 将该前继续节点状态置为signal, 以便前继节点唤醒后继节点。
 在释放节点时(release()), 只要当前状态不为0, 就会唤醒后继节点。此时等待队列如下:
-<img src="http://owsl7963b.bkt.clouddn.com/AQS2.png" height="200" width="250"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/AQS2.png" height="200" width="250"/>
 
 有个问题: 这里为啥在else那里不直接可以去睡眠呢?
 假如前继节点释放锁的时候，此时发现自己不为SIGNAL，那么就不唤醒后继节点， 此时后继节点将自己设置为了SIGNAL， 那么此时设置也是无用的，形成了死等待。 所以自己在睡眠之前，再去检查下前继节点是否已经释放了锁，若释放了锁，就直接执行，没有释放锁，才能安慰睡觉。
@@ -227,7 +227,7 @@ FairSync尝试获取锁的过程比较简单: 若status为0, 那么说明锁还�
 ```
 这里我们需要知道, 该线程从睡眠中被唤醒, 有可能是通过LockSupport.unpark(this)、也有可能是通过thread.interrupt()方式唤醒的, 第一种唤醒是有意义的, 对于第二种唤醒并没有意义,我们在acquireQueued中自旋时会忽略这种情况。
 至此, 获取锁的过程已经全部完成, 整体过程如下:
-<img src="http://owsl7963b.bkt.clouddn.com/AQS4.png" height="260" width="800"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/AQS4.png" height="260" width="800"/>
 要么获取到锁, 那么线程进入等待队列安心睡眠。
 ### 释放锁
 释放锁只需要调用sync.release(1)就行了, 实际调用的AbstractQueuedSynchronizer里面的函数:
@@ -295,6 +295,6 @@ FairSync尝试获取锁的过程比较简单: 若status为0, 那么说明锁还�
 1. 首先将本节点waitStatus置为0(初始值)
 2. 如果后继节点被取消了(waitStatus>0), 那么在后继节点中找到一个最靠近的、非cancel状态的节点, 然后唤醒这个节点上的线程。 这里不用将cancel状态的节点从队列中去掉, 在节点尝试获取锁的时候会自动干这个事。
 释放锁过程如下:
-<img src="http://owsl7963b.bkt.clouddn.com/AQS5.png" height="200" width="450"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/AQS5.png" height="200" width="450"/>
 ### 总结
 线程在获取锁的时候, 主要根据ReentrantLock里面的状态status来识别是否可以获取锁, 若为0, 那么锁未被获取; 若为1, 说明锁被一个线程获取; 若大于1, 说明发生了线程重入。 若没有获取到, 则将自己加入等待队列, 然后睡眠。 线程在释放锁时, 也会唤醒等待队列排在前面的线程。
