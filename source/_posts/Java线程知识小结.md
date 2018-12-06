@@ -39,6 +39,7 @@ public void run(){//线程B
 + wait/notify两个操作都必须要和synchronized(lock)配合使用, 这里可以这么理解: 每个object都拥有一个WatiQueue等待队列, 存放着调用lock.lock()被阻塞的线程, 每次向这个等待队列添加或者删除线程时, 为了保证对该队列操作的互斥性, 使用synchronized来达到目的;
 + 线程B调用lock.notify()后, 线程A并不能立刻从lock.wait()中醒来, 此时只是`线程B把线程A从lock对象的WatiQueue中移动到了SynchrozizedQueue中`, 线程A的状态由wait变化为blocked
 + 线程B完全执行完 synchronized(lock){}块后, 线程A才能继续执行。也就是说A从wait()返回的前提是获取到了锁。
++ 若线程A与B之间调用顺序不能反了, 若B先执行的话, 那么A将永远不能被唤醒。与LockSupport(park/unpark)相比很大的区别
 notify的作用只是唤醒一个object.wait()状态的线程, 唤醒哪个线程, 与线程优先级等有关 notifyAll的作用是唤醒全部object.wait()的线程。
 
 # Join
