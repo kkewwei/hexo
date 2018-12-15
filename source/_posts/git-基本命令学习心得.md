@@ -3,7 +3,7 @@ title: git 基本命令学习心得-1
 date: 2017-03-08 12:46:57
 tags: git, rebase, cherry-pick, reset, checkout
 ---
-rebase, cherry-pick、merge等都有一个概念:提交commit, 就以下图为例, 把当一次提交D合并到另外一个提交E, 产生E', 这里的提交D指的当前D的所有全量代码, 去和E合并, 并不是由C commit到D时产生的增量代码去和E合并。
+rebase, cherry-pick、merge等都有一个概念:提交commit, 就以下图为例, 把当一次提交D合并到另外一个提交E, 产生E', 这里的提交D指的当前D的所有全量代码, 去和E合并, 并不是由C commit到D时产生的增量代码去和E合并。一般在公共分支上操作,不能修改分支的提交记录, 但是可以使用cherry-pick, revert这样的可以使用, 而rebase, reset这样的命令一般在私有分支上才可用。
 # rebase
 git rebase是用来更改提交的基, 通过重新在当前分支提交一连串的commit来实现的, 比如dev分支从master A提交产生的, 在master分支又进行了B、C、D提交, 在dev分支进行了E、F、G提交, 此时为了保证D能够合并到master最新的D提交上, 那么就使用rebase。
 <img src="https://kkewwei.github.io/elasticsearch_learning/img/git_rebase3.png" height="300" width="500"/>
@@ -68,7 +68,7 @@ rebase: 修改提交历史, 改变的是整个分支的提交基, 将每次提�
 cherry-pick: 不会修改提交历史,仅仅产生一个新的提交。像挑选樱桃一样, 可以某个分支某次提交与另一个分支提交代码合并。
 
 # revert
-revert的含义是撤销某次提交, 下图为例, 比如想撤销G提交: `git:(master D提交): git revert G`, 实际就是将G提交的父提交F的全部代码与D合并, 然后产生新的提交D'。
+revert的含义是撤销(丢弃)某次提交, 下图为例, 比如想撤销G提交: `git:(master D提交): git revert G`, 实际就是丢弃G的提交, 具体实现是将G提交的父提交F的全部代码与D合并, 然后产生新的提交D'。
 <img src="https://kkewwei.github.io/elasticsearch_learning/img/git_revert1.png" height="350" width="450"/>
 同cherry-pick一样, 并不改变历史提交记录, 仅仅将D和F(G的父提交)合并, 产生的新提交D'与G提交没有任何关系。
 比如`git:(master D提交): git revert HEAD`, 撤销最近一次提交(也就提交D提交), 可能要产生冲突, 解决冲突后通过git add、git revert --continue来完成此次操作。

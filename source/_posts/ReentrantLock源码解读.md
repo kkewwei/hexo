@@ -155,7 +155,7 @@ FairSync尝试获取锁的过程比较简单: 若status为0, 那么说明锁还�
                 final Node p = node.predecessor(); //查找前继节点
                 //该节点前节点是头结点，并且获取到了锁,只要不满足这个条件，该节点将一直阻塞下去
                 if (p == head && tryAcquire(arg)) {
-                    setHead(node); //那么设置该节点为头结点
+                    setHead(node); //那么设置该节点为头结点,将该线程对应的节点清空,变成无状态的头
                     p.next = null; // help GC 抛弃该节点，等待被回收
                     failed = false;
                     return interrupted;
@@ -296,5 +296,6 @@ FairSync尝试获取锁的过程比较简单: 若status为0, 那么说明锁还�
 2. 如果后继节点被取消了(waitStatus>0), 那么在后继节点中找到一个最靠近的、非cancel状态的节点, 然后唤醒这个节点上的线程。 这里不用将cancel状态的节点从队列中去掉, 在节点尝试获取锁的时候会自动干这个事。
 释放锁过程如下:
 <img src="https://kkewwei.github.io/elasticsearch_learning/img/AQS5.png" height="200" width="450"/>
+注意, 对阻塞队列的结构的修改都是被唤醒线程进行的, 释放锁的线程没有做这些操作
 ### 总结
 线程在获取锁的时候, 主要根据ReentrantLock里面的状态status来识别是否可以获取锁, 若为0, 那么锁未被获取; 若为1, 说明锁被一个线程获取; 若大于1, 说明发生了线程重入。 若没有获取到, 则将自己加入等待队列, 然后睡眠。 线程在释放锁时, 也会唤醒等待队列排在前面的线程。

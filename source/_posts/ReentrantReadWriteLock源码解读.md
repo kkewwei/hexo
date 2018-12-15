@@ -280,7 +280,7 @@ readWriteLock.writeLock().lock();
 ```
 + 首先检查是否锁不为0(读+写)。 若读+写不为0, 而写锁为0, 说明有读锁, 本线程获取锁失败; 或者写锁也不为0, 并且获取写锁的那个线程不是本线程, 说明不是写线程的重入,也获取锁失败。 若以上两步有成功的话, 则获取锁成功。
 + 反正则说明当前state=0(没有读+写线程), 那么成功获取到锁。 writerShouldBlock()对于写锁始终未false。
-再来看第二步, 也就是说明本线程没有获取到锁, 那么将本线程加入阻塞队里等待唤醒, nextWaiter设置为EXCLUSIVE,  acquireQueued(addWaiter(Node.EXCLUSIVE), arg))具体怎么实现请去查看<a href="https://kkewwei.github.io/elasticsearch_learning/2017/08/28/ReentrantReadWriteLock%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/">ReentrantReadWriteLock源码解读</a>acquireQueued()
+再来看第二步, 也就是说明本线程没有获取到锁, 那么将本线程加入阻塞队里等待唤醒, nextWaiter设置为EXCLUSIVE,  acquireQueued(addWaiter(Node.EXCLUSIVE), arg))具体怎么实现请去查看<a href="https://kkewwei.github.io/elasticsearch_learning/2017/07/23/ReentrantLock%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/">ReentrantLock源码解读</a>acquireQueued()
 第三步也很简单, 就是把中断信号向外传递。
 ## unlock()
 写锁释放时,调用release()方法, 如下:

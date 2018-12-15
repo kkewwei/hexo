@@ -63,7 +63,7 @@ try {
 } catch (Exception ex) { throw new Error(ex); }
 ```
 该函数可以获取到该线程类成员变量parkBlocker在内存中的偏移量parkBlockerOffset, 然后就可以通过`public static void park(Object blocker)`显示指示该类被什么阻塞的了。然后在jstack时, 将可以看到如下信息:
-<img src="https://kkewwei.github.io/elasticsearch_learning/img/LockSupport1.png" height="150" width="400"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/LockSupport1.png" height="150" width="600"/>
 提示你设置的阻塞对象是啥, park()代码如下:
 ```
  public static void park(Object blocker) {
