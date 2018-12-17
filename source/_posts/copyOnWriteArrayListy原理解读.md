@@ -1,5 +1,5 @@
 ---
-title: CopyOnWriteArrayList原理解读
+title: CopyOnWriteArrayList原理分析
 date: 2017-09-17 10:14:15
 tags:
 ---

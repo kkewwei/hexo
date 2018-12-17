@@ -1,5 +1,5 @@
 ---
-title: Condition接口原理解读
+title: Condition接口原理介绍及ArrayBlockingQueue、LinkedBlockingQueue实现
 date: 2017-10-02 19:28:01
 tags:
 ---
