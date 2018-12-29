@@ -22,6 +22,7 @@ tags:
 http处理方式是每次将缓冲池放满(默认65536个), 然后将65536个字符按照虚拟的chunk分片(默认一个HttpChunk 8192个字符),通过handler, 最后在HttpObjectAggregator聚合, 然后发向后面。
 这里有一个问题:
 `为什么不将65536个字符一下发送到最终handler, 而需要先分解成虚拟的chunked, 一个一个发送到后面再聚合起来?`
+服务器端数据真正接收到客户端网络的数据是在NioSocketChannel里面的NioByteUnsafe(NioSocketChannelUnsafe父类)里面的read()里面。
 # HttpObjectDecoder和HttpRequestDecoder
 首先需要知道, Rquest请求由FullHttpRequest构成, 主要分为两部分:
 + HttpRequest: 主要存放inital, head等。

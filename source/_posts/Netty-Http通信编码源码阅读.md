@@ -286,7 +286,7 @@ private boolean encodeContent(HttpContent c, List<Object> out) {
 + 在finishEncode()中会产生DefaultHttpContent, 里面存放的是gzip压缩的footer(可读才10 byte), 具体byte见JdkZlibEncoder.finishEncode里面描述。
 7.2.向out中写入LastHttpContent.EMPTY_LAST_CONTENT, 代表这个帧内容结束。
 这样整个输出帧的内容存放在out中, 拥有的对象如下:
-<img src="https://kkewwei.github.io/elasticsearch_learning/img/HttpOutPutResponse.png" />
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/HttpOutPutResponse.png"  height="250" width="400"/>
 其中:
 + DefaultHttpResponse: 存放的是Http/1.1 status, Header等
 + 第一个DefaultHttpContent存放的是压缩的内容。
@@ -440,7 +440,7 @@ state初始值为ST_INIT, 该函数主要做了如下操作:
 1) 可以看出实际编码后存放的是 key: value\r\n; 注意冒号后面是空格
 2) 通过CharsetUtil.US_ASCII编码key和value
 + 再接着写入[CRLF]。 其实可以看出, http response byte每部分内容都是以[CRLF]作为分隔符, 格式如下:
-<img src="https://kkewwei.github.io/elasticsearch_learning/img/HttpResponse_Byte.png" />
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/HttpResponse_Byte.png"  height="250" width="450"/>
 
 然后根据header部分来改变state状态, 一般state会被置为ST_CONTENT_NON_CHUNK。根据MessageToMessageEncoder.write()可知, 编码完DefaultHttpResponse, 就调用DefalueChannalHadlerContext.write继续向外写, 后面会详细讲些该部分。
 2.第二、三次、四次传递过来的是DefaltHttpContent, 将进入ST_CONTENT_NON_CHUNK部分。
@@ -573,7 +573,7 @@ bootstrap.childOption(ChannelOption.WRITE_BUFFER_LOW_WATER_MARK, 32 * 1024);
 该代码主要做了如下事情:
 1. 检查是否有正在flush,  如是的话, 直接退出。
 2. 标志正在flush
-3.调用doWrite继续刷:
+3.调用NioSocketChannel.doWrite()继续刷:
 ```
 protected void doWrite(ChannelOutboundBuffer in) throws Exception {
         for (;;) {

@@ -101,7 +101,7 @@ free代表的含义是需要释放16KB级别缓存queue中缓存的个数, 如�
 
 ## PoolThreadLocalCache
 文章开头讲了, 线程首先从本地缓存分配内存。PoolThreadCache主要解决了了如何从本地缓存分配内存, 而本地缓存如何与该线程联系在一起的呢? 这就是PoolThreadLocalCache起的作用。
-PoolThreadLocalCache是全局唯一的, 任何线程分配内存, 都会调用同一个PoolThreadLocalCache.get()获取PoolThreadLocalCache。 该类封装了java的ThreadLocal.get()方法:
+PoolThreadLocalCache是全局唯一的, 任何线程分配内存, 都会调用同一个PoolThreadLocalCache.get()获取PoolThreadCache。 PoolThreadLocalCache继承了FastThreadLocal, PoolThreadLocalCache.get()实际调用了FastThreadLocal.get()方法:
 ```
     public final V get() {
         return get(InternalThreadLocalMap.get());

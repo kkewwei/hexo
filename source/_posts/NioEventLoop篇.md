@@ -48,10 +48,22 @@ startThread用来启动NioEventLoop里面的执行线程,代码如下:
                 } catch (Throwable t) {
                 }
 ```
-executor仅仅是一个执行器, 唤醒了一个线程后, 这个线程就是NioEventLoop线程的核心部分, 该线程生命周期很长, 即使执行发生异常, 也不会主动退出。
-
+executor实际是ThreadPerTaskExecutor, execute将跑到ThreadPerTaskExecutor.execute():
+```
+ @Override
+    public void execute(Runnable command) {
+        threadFactory.newThread(command).start();
+    }
+```
+这里真正唤醒了线程new Runnable()后, 这个线程就是NioEventLoop线程的核心部分, 该线程生命周期很长, 即使执行发生异常, 也不会主动退出。
+因为NioEventLoop对应的线程比较重要, 弄清楚如何启动该线程对我们了解很有帮助, 我们来捋一捋这个过程,下图是涉及到的类及函数
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/NioEventLoop1.png" height="300" width="450"/>
+1. 首先eventLoop.execute(), 主函数返回。
+2. 进入了SingleThreadEventExecutor.execute(), 首先检查thread变量是否为null, 若为空并且检查state状态为not_started, 代表没有启动, 则调用executor.execute()
+3. 调用executor.execute()后, 产生线程并启动, 线程的run()如上所示, 会对thread赋值, 然后调用NioEventLoop.run()开始死循环执行。
 
 # NioEventLoop
+NioEventLoop作为Netty多线程的重要类, 我们可以将其看成一个只有一个线程的线程池
 task分为两类任务: 非IO型和IO型, 它们的执行时间比例由ioRatio参数控制, 默认50%,非IO型执行时间 = IO型执行时间。
 + 非IO型: 本进程内, 别的线程发送的请求, 比如将新的Context(hanlder)添加到Pipieline中等等(代码见文章开头`ch.eventLoop().execute`)
 + IO型: Accetp、Write、read等从远程节点发送过来的请求。

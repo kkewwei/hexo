@@ -75,7 +75,8 @@ class HelloServerHandler extends SimpleChannelInboundHandler<String> {
 # 具体过程分析
  ## 首先分析AbstractBootstrap.doBind()
  ```
-     final ChannelFuture regFuture = initAndRegister();
+    private ChannelFuture doBind(final SocketAddress localAddress) {
+       final ChannelFuture regFuture = initAndRegister();
         final Channel channel = regFuture.channel(); //NioServerSocketChannel
         if (regFuture.cause() != null) {
             return regFuture;
@@ -107,7 +108,7 @@ class HelloServerHandler extends SimpleChannelInboundHandler<String> {
                 }
             });
             return promise;
-        }
+    }
 ```
 主要干的事:
 1. 生成并初始化NioServerSocketChannel,见initAndRegister():
@@ -119,7 +120,8 @@ NioServerSocketChannel构造函数如下:
 ```
         this.parent = parent;
         id = newId();// 分配一个全局唯一的id，默认为MAC+进程id+自增的序列号+时间戳相关的数值+随机值
-        unsafe = newUnsafe(); // 初始化Unsafe, NioSocketChannel对应的是NioSocketChannelUnsafe
+        // 初始化Unsafe, NioSocketChannel对应的是NioSocketChannelUnsafe; 而NioServerSocketChannel对应着NioMessageUnsafe
+        unsafe = newUnsafe();
         pipeline = newChannelPipeline();//// 初始化pipeline，
         this.ch = ch;
         this.readInterestOp = readInterestOp;
@@ -150,16 +152,17 @@ tail.prev = head;
 + TailContext和HeadContext是所有Pipeline默认拥有的,他们本身同时继承了AbstractChannelHandlerContext, 另外HeadContext继承了ChannelOutboundHandler, ChannelInboundHandler两种属性, TailContext继承了ChannelOutboundHandler一种, 返回handler都是本身
 + ch传递过来的参数是SelectionKey.OP_ACCEPT, 之后会再次初始化成0(0并不是SelectionKey其中的一种), (见doRegister())
 + 将该channel设置为非block类型,这里是不是与NIO很像。
-(2) 对channel初始化(见`分析init(channel)`)
+(2) 调用channel()对channel初始化(见`分析init(channel)`)
 (3) 将产生的NioServerSocketChannel注册到对应EventLoop上,见register()部分。
 
 &emsp;regFuture.isDone()当且仅当执行NioServerSocketChannel.register(selector, SelectionKey)之后, 也就是将NioServerSocketChannel注册到parentGroup管理的NioEventLoop的selector上(代码见AbstractChannel.register0()), ChannelPromise状态才置为success。 后面会详细讲解doBind0函数。
 
 <font size=6>分析init(channel)</font>
 <p>代码实际会跑到ServerBootstrap.init():
+
 ```
             ChannelPipeline p = channel.pipeline(); //DefaultChannalPipeLine
-            p.addLast(new ChannelInitializer<Channel>() { //新建的ChannelInitializer.initChannel
+            p.addLast(new ChannelInitializer<Channel>() {
             @Override
             public void initChannel(final Channel ch) throws Exception {//NioServerSocketChannel
                 final ChannelPipeline pipeline = ch.pipeline();
@@ -177,10 +180,12 @@ tail.prev = head;
             }
         });
 ```
+主要干的事是向NioServerSocketChannel的DefaultChannalPipeLine对应的处理链添加ChannelInitializer(实际也是一个InBoundHandler), ChannelInitializer对于后面还有作用, 先留个印象。<br>此时, NioServerSocketChannel对应的pipeline中handler结构如下:
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/PipeLine.png" height="200" width="450"/>
 
-主要干的事是向NioServerSocketChannel的DefaultChannalPipeLine对应的处理链添加ChannelInitializer(实际也是一个InBoundHandler), ChannelInitializer对于后面还有作用, 先留个印象。<br>
 <font size=6>p.addLast</font>
 <p>具体添加代码操作如下:
+
 ```
         synchronized (this) {
             newCtx = newContext(group, filterName(name, handler), handler);
@@ -229,8 +234,9 @@ tail.prev = head;
         return false;
     }
   ```
-  + 这里会进入ChannelInitializer.initChannel(final Channel ch)(详见ServerBootstrap.init()), 会向pipeLine添加ServerBootstrapAcceptor, 传递的参数也可以注意下, 有childGroup、以及自定义的HelloServerInitializer。之后新建立的连接请求SocketChannel, 将根据这两个参数创建, 之后会详解(见NioEventLoop篇)。
-  + 这里还需要注意remove(ctx), 在对channel之后, 会将该匿名ChannelInitializer(见ServerBootstrap.init())从NioServerSocketChannel的pipeline中删掉。这样该pipeline里的handler包含(head->tail),和可能已经放进来的的ServerBootstrapAcceptor。
+  + 这里会进入ChannelInitializer.initChannel(final Channel ch)(详见ServerBootstrap.init()), 把会向pipeLine添加ServerBootstrapAcceptor的操作当成一个task, 传递给NilEventLoop, 等待执行形成一个最终的handler链。 传递的参数也可以注意下, 有childGroup、以及自定义的HelloServerInitializer。之后新建立的连接请求SocketChannel, 将根据这两个参数创建, 之后会详解(见NioEventLoop篇)。
+  + 这里还需要注意ChannelInitializer.remove(ctx)会将该匿名ChannelInitializer(见ServerBootstrap.init())从NioServerSocketChannel的pipeline中删掉。这样NioServerSocketChannel对应的pipeline结构如下:
+  <img src="https://kkewwei.github.io/elasticsearch_learning/img/PipeLine2.png" height="200" width="650"/>
 
 <font size=6>register</font><p>
 根据`config().group().register(channel)`进行注册, 首先这里的group()使用的是ParentGroup里面的EventLoop, 具体从EventLoop选取哪个EventLoop来与该channel绑定呢,使用的轮训策略。每次选取都会+1。 这里分两种决策策略:PowerOfTwoEventExecutorChooser和GenericEventExecutorChooser,都实现了+1的效果, 两者的唯一区别就是求余的效果不同:
@@ -303,6 +309,11 @@ doRegister()函数将会跑到AbstractNioChannel.doRegister()里面, 如下:
         }
 ```
 这里是不是很熟悉? 不断地轮训注册, 将该channel注册到NioEventLoop上面的Selector上面, 并且select_ops置为0, 表示什么都不感兴趣。
+我们先了解NioServerSocketChannel与NioSocketChannel的继承关系:
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/ServerBootstrap1.png" height="200" width="450"/>
+可以看到:
++ NioServerSocketChannel在初始化时候就声明readInterestOp为OP_ACCEPT, 而NioSocketChannel在初始化时声明readInterestOp为OP_READ。
++ NioServerSocketChannel对应NioMessage, 当bossdui对应的NioEventLoop为新的连接建立NioSocketChannel时, 都会进入NioMessage.read()进行初始化。当NioSocketChannel对应着NioByteUnsafe, 当work对应的NioSocketchannel接收到数据时, 会进入NioByteUnsafe.read()只来接收数据。
 
 继续回到register()上,  channel与selector完成register之后:
 1. 执行一些挂起的任务(invokeHandlerAddedIfNeeded()), 比如p.addLast所介绍的, 此时pileline对应的的handler链如下:HEAD->ServerBootstrapAcceptor->TAIL
@@ -310,25 +321,45 @@ doRegister()函数将会跑到AbstractNioChannel.doRegister()里面, 如下:
 ```
  boolean wasActive = isActive();
             try {
-                doBind(localAddress); //doBind0最终调用channel.bind方法对执行端口进行绑定
+                 //doBind0最终调用channel.bind方法对执行端口进行绑定
+                doBind(localAddress);
             } catch (Throwable t) {
                 safeSetFailure(promise, t);
                 closeIfClosed();
                 return;
             }
-            if (!wasActive && isActive()) { //之前没有绑定，现在绑定了，绑定的意思是NioServerSocketChannel里面的SocketChannel的Address有值了
+            //之前没有绑定，现在绑定了，绑定的意思是NioServerSocketChannel里面的SocketChannel的Address有值了
+            if (!wasActive && isActive()) {
                 invokeLater(new Runnable() {
                     @Override
                     public void run() {
-                        pipeline.fireChannelActive(); //最终修改的是NioServerSocketChannel的可读属性
+                        //最终修改的是NioServerSocketChannel的可Accept属性
+                        pipeline.fireChannelActive();
                     }
                 });
             }
 ```
+NioServerSocketChannel在初始化时只是将readInterestOp赋值为OP_ACCEPT, 而被注册感兴趣OP_ACCEPT是在这里, 真正调用了AbstractNioCHannel.doBeginRead来实现注册
+```
+    @Override
+    protected void doBeginRead() throws Exception {
+        // Channel.read() or ChannelHandlerContext.read() was called
+        final SelectionKey selectionKey = this.selectionKey;
+        if (!selectionKey.isValid()) {
+            return;
+        }
 
+        readPending = true;
+
+        final int interestOps = selectionKey.interestOps();
+        if ((interestOps & readInterestOp) == 0) { //将设置可接受
+            selectionKey.interestOps(interestOps | readInterestOp);
+        }
+    }
+```
 
 自此NioServerSocketChannel已经初始化完成, NioServerSocketChannel拥有的pipeLine的里面的上下文:
-<img src="https://kkewwei.github.io/elasticsearch_learning/img/PipeLine.png" />
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/PipeLine1.png" height="300" width="550"/>
 其中第二个Context的handler为ServerBootstrapAcceptor, 它的构造时的代码如下:
 ```
 new ServerBootstrapAcceptor(ch, currentChildGroup, currentChildHandler, currentChildOptions, currentChildAttrs)
