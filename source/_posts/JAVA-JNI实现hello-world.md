@@ -49,20 +49,20 @@ JNIEXPORT void JNICALL Java_Native1_sayHello
 java的native方法转变为c++函数的规则如下：Java_{package_and_classname}_{function_name}(JNI arguments)。包名中的点换成单下划线。需要说明的是生成函数中的两个参数：
 ++ JNIEnv *：这是一个指向JNI运行环境的指针，后面我们会看到，我们通过这个指针访问JNI函数
 ++ jobject：这里指代java中的this对象。 如果定义为static函数,这里类型将是jclass
-我们需要在myNative.c(.cpp文件也是支持的)里面实现Java_Native_sayHello函数:
+我们需要在myNative.c(.cpp文件也是支持的, 此文件名称不需要与java类名一致, 只需要动态链接库名与调用的库名有对应关系即可)里面实现Java_Native_sayHello函数:
 ```
 #include "/Users/xiaoyu/Workspace_10.28/es2.3/es2.3/src/main/java/Native1.h"
 #include <stdio.h>
-JNIEXPORT void JNICALL Java_Native_sayHello(JNIEnv *env, jobject thisObj)
+JNIEXPORT void JNICALL Java_Native1_sayHello(JNIEnv *env, jobject thisObj)
 {
     printf("Hello，JNI");
 }
 ```
-头文件指明了Native1.h。这里主要定义了Java_Native_sayHello函数。
+头文件指明了Native1.h。这里主要定义了Java_Native1_sayHello函数。
 3. 生成动态链接库libhelloworld.jnilib
 `gcc -I/Library/Java/JavaVirtualMachines/jdk1.8.0_74.jdk/Contents/Home/include/darwin -I/Library/Java/JavaVirtualMachines/jdk1.8.0_74.jdk/Contents/Home/include -dynamiclib /Users/xiaoyu/TEST/c++/Native1.c -o libhelloworld.jnilib`
 这样的话, 会生成一个动态链接库文件:libhelloworld.jnilib 注意这里的名称不是随便起的。在mac系统上, 库名必须libXXX.jnilib这种结构, 我们在代码中加上这句:System.loadLibrary("hellworld"); 系统才能正常识别。
-4. 执行java Native1, 获得如下结果。
+4. 执行java -Djava.library.path=$path{libhelloworld.jnilib} Native1, 获得如下结果(这里需要声明动态文件库位置)。
 ```
 Hello，JNI%
 ```

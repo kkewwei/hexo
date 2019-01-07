@@ -4,7 +4,7 @@ date: 2018-05-23 22:31:13
 tags:
 ---
 # 简介
-Netty内存主要分为两种: DirectByteBuf和HeapByteBuf, 实际上就是堆外内存和堆内内存。堆外内存又称直接内存。 自从JDK1.4开始, 增加了NIO, 可以直接Native函数在堆外构建直接内存。Netty作为服务器架构技术, 拥有大量的网络数据传输, 当我们进行网络传输时, 必须将数据拷贝到直接内存, 合理利用好直接内存, 能够大量减少堆内数据和直接内存考虑, 显著地提高性能。 但是堆外内存也有一定的缺点, 它进程主动垃圾回收,垃圾回收效率也极低, 因此, netty主动创建了Pool和Unpool的概念。
+Netty内存主要分为两种: DirectByteBuf和HeapByteBuf, 实际上就是堆外内存和堆内内存。堆外内存又称直接内存, 通过io.netty.noPreferDirect参数设置。 自从JDK1.4开始, 增加了NIO, 可以直接Native函数在堆外构建直接内存。Netty作为服务器架构技术, 拥有大量的网络数据传输, 当我们进行网络传输时, 必须将数据拷贝到直接内存, 合理利用好直接内存, 能够大量减少堆内数据和直接内存考虑, 显著地提高性能。 但是堆外内存也有一定的缺点, 它进程主动垃圾回收,垃圾回收效率也极低, 因此, netty主动创建了Pool和Unpool的概念。
 ## Pool和Unpool区别
 字面意思, 分别是池化内存和非池化内存。`池化内存`的管理方式是首先申请一大块内存, 然后再慢慢使用, 当使用完成释放后, 再将该部分内存放入池子中, 等待下一次的使用, 这样的话, 可以减少垃圾回收次数, 提高处理性能。`非池化内存`就是普通的内存使用, 需要时直接申请, 释放时直接释放。 可以通过参数`Dio.netty.allocator.type`确定netty默认使用内存的方式, 目前netty针对pool做了大量的支持, 这样内存使用直接交给了netty管理, 减轻了直接内存回收的压力。 所以在netty4时候, 默认使用pool方式。
 这样的话, 内存分为四种: PoolDireBuf、UnpoolDireBuf、PoolHeapBuf、UnpoolHeapBuf。netty底层默认使用的PoolDireBuf类型的内存, 这些内存主要由PoolArea管理, 这也是本文的重点。
@@ -28,7 +28,7 @@ Netty内存主要分为两种: DirectByteBuf和HeapByteBuf, 实际上就是堆�
     }
 ```
 主要做的事:
-+ 获取该线程绑定的PoolThreadCache(可参考<a href="https://kkewwei.github.io/elasticsearch_learning/2018/07/14/Netty-PoolThreadCache%E6%BA%90%E7%A0%81%E6%8E%A2%E7%A9%B6/">Netty PoolArea内存原理探究</a>)
++ 获取该线程绑定的PoolThreadCache(可参考<a href="https://kkewwei.github.io/elasticsearch_learning/2018/07/14/Netty-PoolThreadCache%E6%BA%90%E7%A0%81%E6%8E%A2%E7%A9%B6/">Netty PoolThreadCache原理探究</a>)
 + 从绑定的PoolThreadCache中获取PoolArena, 从PoolArena中开始真正分配内存。
 
 # PoolArena
@@ -82,7 +82,7 @@ PoolArea申请内存时根据申请的大小使用不同对象进行分配:
 + smallSubpagePools分配[512b, 4k]之间的内存大小, 分配结构同tinySubpagePools一样。
 + q050、q025、q000、qInit、q075主要负责分配[8k, 16M]大小的内存, 其存放的元素都是大小为16M的PoolChunk, 这几个成员变量不同的是元素PoolChunk的使用率不同, 比如q025里面存放的chunk使用率为[25%, 75%]。 若需要申请[16b, 4k]的内存、而tinySubpagePools、smallSubpagePools没有合适的内存块时, 会从这些对象包含的PoolChunk中分配8k的叶子节点供重新划分结构进行分配。
 他们存储的属性PoolChunk可以在不同的属性中移动, 其中:<p>
-&nbsp;&nbsp;若q025中某个PoolChunk使用率大于75%之后, 该PoolChunk将别移动到q050中。
+&nbsp;&nbsp;若q025中某个PoolChunk使用率大于25%之后, 该PoolChunk将别移动到q050中。
 &nbsp;&nbsp;若q050中某个PoolChunk使用率小于50%之后, 该PoolChunk将别移动到q025中。
 &nbsp;&nbsp;若qInit使用率为0, 也不会释放该节点。
 &nbsp;&nbsp;若q000使用率为0, 会被释放掉。
@@ -90,7 +90,9 @@ PoolArea申请内存时根据申请的大小使用不同对象进行分配:
 numThreadCaches负责统计该PoolChunk被多少NioEventLoop线程绑定, 具体可见<a href="https://kkewwei.github.io/elasticsearch_learning/2018/07/14/Netty-PoolThreadCache%E6%BA%90%E7%A0%81%E6%8E%A2%E7%A9%B6/">Netty PoolThreadCache原理探究</a>
 
 ## PoolArena的内存分配
-
+线程分配内存主要从两个地方分配: PoolThreadCache和PoolArena
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/PoolArea1.png" height="300" width="350"/>
+其中PoolThreadCache线程独享, PoolArena为几个线程共享。
 netty真正申请内存时, 首先便是调用PoolArena.allocate()函数:
 ```
  private void allocate(PoolThreadCache cache, PooledByteBuf<T> buf, final int reqCapacity) {

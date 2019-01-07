@@ -280,3 +280,4 @@ LinkedTransferQueue与其他阻塞队列相比, 比较大的区别就是也可�
 # 参考
 https://segmentfault.com/a/1190000016460411
 https://www.zybuluo.com/eric1989/note/698826
+http://ifeve.com/buglinkedtransferqueue-bug/

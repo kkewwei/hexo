@@ -7,10 +7,13 @@ rebase, cherry-pick、merge等都有一个概念:提交commit, 就以下图为�
 # rebase
 git rebase是用来更改提交的基, 通过重新在当前分支提交一连串的commit来实现的, 比如dev分支从master A提交产生的, 在master分支又进行了B、C、D提交, 在dev分支进行了E、F、G提交, 此时为了保证D能够合并到master最新的D提交上, 那么就使用rebase。
 <img src="https://kkewwei.github.io/elasticsearch_learning/img/git_rebase3.png" height="300" width="500"/>
-`git:(dev) git rebase master`,变基是以共同祖先节点开始变的。 执行后就像放电影一样, 会将E、F、G的所有内容顺序与D合并。比如基于D与E合并后变成D', 基于D'与F合并变成F', 基于F'和G合并变成G'。箭头代表着基于哪些commit进行了merge。 完成rebase操作后, 提交链路被就改了。
+`git:(dev) git rebase master`, 此时处于G(最新提交)操作。变基是以共同祖先节点开始变的, 执行后就像放电影一样, 会将E、F、G的所有内容顺序与D合并。比如基于D与E合并后变成D', 基于D'与F合并变成F', 基于F'和G合并变成G'。箭头代表着基于哪些commit进行了merge。 完成rebase操作后, 提交链路被就改了。
 用法:1.git rebase master 2. 通过vim解决冲突, 3.使用git add .保存 4.git rebase --continue继续解决下一个冲突
 注意: 并没有要求修改comment, commit不变
-
+## 半路rebase
+以上示例是我们在dev分支的最新提交H上进行rebase的, 假如我们不在最新G上操作, 而是在F上进行rebase操作, 会出现什么结果呢?
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/git_rebase2.png" height="300" width="500"/>
+可以看到dev分支没有任何变化, 而是将EF提交分别与D提交合并, 使EF部分变基到master分支上。
 ## rebase -i 参数
 -i参数使rebase将于用户交互的形式完成merge, 根据这个参数, 用户可以完成多次提交顺序的复制、删除、编辑commit、修改提交顺序等一系列操作。
 `git:(dev): git rebase -i master`之后, 将弹出这样的界面:

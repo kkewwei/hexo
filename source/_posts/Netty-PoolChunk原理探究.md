@@ -46,7 +46,7 @@ Netty分配内存(0~16M)与回收主要是在PoolChunk上完成的, 在内存分
     PoolChunkList<T> parent;
 ```
 当我们需要分配内存时, 会在二叉树上查找满足大小的节点, 我们需要考虑的一个问题: 若申请了第11层下标为2048节点的8k内存, 下标为1024的父节点怎么才能避免被不被16k的申请所申请到呢?
-<img src="https://kkewwei.github.io/elasticsearch_learning/img/PoolChunke%20allocation.png" height="400" width="450"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/PoolChunk2.png" height="200" width="250"/>
 Netty为每一层分配的一个层号, 根据层号可以直接获取该节点剩余最大可分配的内存空间。
 当第11层下标为2048的节点被分配出去:
 1. 则该节点的层号被修改为12, 表示该节点不可再分配。

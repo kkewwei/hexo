@@ -95,9 +95,9 @@ trim()是如何确定哪些缓存块需要释放呢? 它会分别检查tiny、sm
             }
         }
 ```
-`size`表示该16K级别的queue最大能缓存的内存数(默认64个)
+`size`表示该16K级别的queue单位十年内必须分配多少次, 才不会释放(默认64个)
 `allocations`表示在达到MemoryRegionCache成功分配freeSweepAllocationThreshold次缓存中、从16K级别的缓存块中分配的缓存次数。
-free代表的含义是需要释放16KB级别缓存queue中缓存的个数, 如果从16KB级缓存队列中成功分配的缓存次数超过size(64次), 则不会释放级别缓存queue。若没有从该级别缓存队列中成功分配一次, 那么该级别的缓存queue存放的缓存块将全部释放。
+free大于0表示成功分配freeSweepAllocationThreshold次缓存中时间内,从当前缓存中分配的次数allocations小于阈值size, 该缓存队列需要释放。 如果从16KB级缓存队列中成功分配的缓存次数超过size(64次), 则不会释放级别缓存queue。若没有从该级别缓存队列中成功分配一次, 那么该级别的缓存queue存放的缓存块将全部释放。
 
 ## PoolThreadLocalCache
 文章开头讲了, 线程首先从本地缓存分配内存。PoolThreadCache主要解决了了如何从本地缓存分配内存, 而本地缓存如何与该线程联系在一起的呢? 这就是PoolThreadLocalCache起的作用。
