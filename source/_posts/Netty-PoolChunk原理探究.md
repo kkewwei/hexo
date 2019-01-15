@@ -71,7 +71,35 @@ Netty为每一层分配的一个层号, 根据层号可以直接获取该节点�
 实际操作中, 针对数据构造二叉树, 实际从memoryMap下标为1的节点开始使用, 数组元素个数为4096。
 
 # PoolChunk分配内存
-下面看如何是从PoolChunk中分配内存的:
+在PoolArea.allocateNormal()中调用newChunk产生PoolChunk
+```
+        protected PoolChunk<ByteBuffer> newChunk(int pageSize, int maxOrder,
+                int pageShifts, int chunkSize) {
+            //
+            if (directMemoryCacheAlignment == 0) {
+                return new PoolChunk<ByteBuffer>(this,
+                         //allocateDirect(chunkSize)会直接创建直接内存， 用直接内存地址构建的DirectByteBuffer
+                        allocateDirect(chunkSize), pageSize, maxOrder,
+                        pageShifts, chunkSize, 0);  //pageShifts= log8k = 13
+            }
+            final ByteBuffer memory = allocateDirect(chunkSize
+                    + directMemoryCacheAlignment);
+            return new PoolChunk<ByteBuffer>(this, memory, pageSize,
+                    maxOrder, pageShifts, chunkSize,
+                    offsetCacheLine(memory));
+```
+我们需要关注下如何通过allocateDirect()产生堆外内存的:
+```
+         private static ByteBuffer allocateDirect(int capacity) {
+            //如果不是调用cleaner来回收对象，那么将使用DirectByteBuff来回收对象
+            return PlatformDependent.useDirectBufferNoCleaner() ?
+                    PlatformDependent.allocateDirectNoCleaner(capacity) : ByteBuffer.allocateDirect(capacity);
+        }
+        static ByteBuffer allocateDirectNoCleaner(int capacity) {
+        return newDirectBuffer(UNSAFE.allocateMemory(capacity), capacity);
+```
+最终是通过直接内存地址的address来产生DirectByteBuffer的, 此时该对象没有cleaner成员变量, 将不能通过cleaner来回收直接内存。
+接下来看看如何是从PoolChunk中分配内存的:
 ```
     long allocate(int normCapacity) {
         if ((normCapacity & subpageOverflowMask) != 0) {

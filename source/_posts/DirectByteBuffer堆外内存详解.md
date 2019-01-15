@@ -53,7 +53,7 @@ DirectByteBuffer是不能直接被外界引用的, 类成员变量如下:
         att = null;
     }
 ```
-可以看到, DirectByteBuffer通过直接调用base=unsafe.allocateMemory(size)操作堆外内存, 返回的是该堆外内存的直接地址, 存放在address中, 以便通过address进行堆外数据的读取与写入。 unsafe的使用可以参考: 参考<a href="https://kkewwei.github.io/elasticsearch_learning/2018/11/10/LockSupport%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/">LockSupport原理分析</a>
+可以看到, DirectByteBuffer通过直接调用base=unsafe.allocateMemory(size)操作堆外内存, 返回的是该堆外内存的直接地址, 存放在address中, 以便通过address进行堆外数据的读取与写入。 unsafe的使用可以参考:<a href="https://kkewwei.github.io/elasticsearch_learning/2018/11/10/LockSupport%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/">LockSupport原理分析</a>
 我们需要了解下, Bits.reserveMemory()如何判断堆外内存是否可用的:
 ```
  static void reserveMemory(long size, int cap) {  ////对分配的直接内存做一个记录
@@ -97,8 +97,143 @@ DirectByteBuffer是不能直接被外界引用的, 类成员变量如下:
 可以看到:
 + 首先检查堆外内存是否够分
 + 若不够分的话, 再进行一次full gc显示推动对堆外内存的回收, 再次尝试分配堆外内存, 不够分的话, 则抛出OOM异常。
+
 # 堆外内存的回收
+在DirectByteBuffer的构造函数中, 我们可以看到这样的一行代码`cleaner = Cleaner.create(this, new Deallocator(base, size, cap));`, 没错, 直接内存释放主要由cleaner来完成。 我们知道JVM GC并不能直接释放直接内存, 但是GC可以释放管理直接内存的DirectByteBuffer对象。 我们需要注意下cleaner的类型:
+```
+public class Cleaner  extends PhantomReference<Object>
+```
+PhantomReference并不会对对象的垃圾回收产生任何影响, 当进行gc完成后, 当发现某个对象只剩下虚引用后, 会将该引用迁移至Reference类的pending队列进行回收. 这里可以看到DirectByteBuffer被Cleaner引用着。Reference操作回收代码如下:
+```
+    static private class Lock { };
+    private static Lock lock = new Lock();
+
+
+    /* List of References waiting to be enqueued.  The collector adds
+     * References to this list, while the Reference-handler thread removes
+     * them.  This list is protected by the above lock object. The
+     * list uses the discovered field to link its elements.
+     */
+    //当gc时，发现DirectByteBuffer除了PhantomReference对象引用,没有其他对象引用， 会把DirectByteBuffer放入其中，等待被回收
+    private static Reference<Object> pending = null;
+
+    /* High-priority thread to enqueue pending References
+     */
+    private static class ReferenceHandler extends Thread {
+
+        ReferenceHandler(ThreadGroup g, String name) {
+            super(g, name);
+        }
+
+        public void run() {
+            for (;;) {
+                Reference<Object> r;
+                synchronized (lock) {
+                    if (pending != null) {
+                        r = pending;
+                        pending = r.discovered;
+                        r.discovered = null;
+                    } else {
+                        // The waiting on the lock may cause an OOME because it may try to allocate
+                        // exception objects, so also catch OOME here to avoid silent exit of the
+                        // reference handler thread.
+                        //
+                        // Explicitly define the order of the two exceptions we catch here
+                        // when waiting for the lock.
+                        //
+                        // We do not want to try to potentially load the InterruptedException class
+                        // (which would be done if this was its first use, and InterruptedException
+                        // were checked first) in this situation.
+                        //
+                        // This may lead to the VM not ever trying to load the InterruptedException
+                        // class again.
+                        try {
+                            try {
+                                //如果没有的话，会一直等待唤醒
+                                lock.wait();
+                            } catch (OutOfMemoryError x) { }
+                        } catch (InterruptedException x) { }
+                        continue;
+                    }
+                }
+
+                // Fast path for cleaners
+                if (r instanceof Cleaner) {
+                     //从头开始进行clena()调用
+                    ((Cleaner)r).clean();
+                    continue;
+                }
+
+                ReferenceQueue<Object> q = r.queue;
+                if (q != ReferenceQueue.NULL) q.enqueue(r);
+            }
+        }
+    }
+
+    static {
+        ThreadGroup tg = Thread.currentThread().getThreadGroup();
+        for (ThreadGroup tgn = tg;
+             tgn != null;
+             tg = tgn, tgn = tg.getParent());
+        Thread handler = new ReferenceHandler(tg, "Reference Handler");
+        /* If there were a special system-only priority greater than
+         * MAX_PRIORITY, it would be used here
+         */
+        handler.setPriority(Thread.MAX_PRIORITY);
+        handler.setDaemon(true);
+        handler.start();
+    }
+```
+可以看出来, JV会新建名为`Reference Handler`的线程, 时刻回收被挂到pending上面的虚拟引用。 当DirectByteBuff对象仅被Cleaner引用时, Cleaner被放入pending队列, 之后调用Cleaner.clean()队列
+```
+ public void clean() {  //这里的clean(）会在Reference回收时显示调用
+        if (!remove(this))
+            return;
+        try {
+            thunk.run();
+        } catch (final Throwable x) {
+            AccessController.doPrivileged(new PrivilegedAction<Void>() {
+                    public Void run() {
+                        if (System.err != null)
+                            new Error("Cleaner terminated abnormally", x)
+                                .printStackTrace();
+                        System.exit(1);
+                        return null;
+                    }});
+        }
+}
+//就是一个释放直接内存的线程
+private static class Deallocator  implements Runnable
+{
+
+        private static Unsafe unsafe = Unsafe.getUnsafe();
+
+        private long address;
+        private long size;
+        private int capacity;
+
+        private Deallocator(long address, long size, int capacity) {
+            assert (address != 0);
+            this.address = address;
+            this.size = size;
+            this.capacity = capacity;
+        }
+
+        public void run() {
+            if (address == 0) {
+                // Paranoia
+                return;
+            }
+            unsafe.freeMemory(address); //释放地址
+            address = 0;
+            Bits.unreserveMemory(size, capacity); //修改统计
+        }
+
+}
+
+```
+可以看到, 此时完成了DirectByteBuff直接内存的释放。
 
 可能有些人会好奇: 为什么IO操作不直接使用堆内内存? 这是因为堆内内存会发生GC移动操作, 对象移动后, 其绝对内存地址也会发生改变, 而gc时对象移动操作很频繁, 不可能每次移动堆内数据, IO时缓存的buffer也跟着一起移动。这样也是不合理的。 而IO操作直接使用堆外内存则没有了这一限制。同时jvm中IO操作的Buffer必须是DirectBuffer(可查看IO.write/read函数)
 # 总结
-在JVM中, 一般只有通过DirectByteBuffer这一种方式操作堆外内存, 平时说的堆外内存泄漏, 也就是指的DirectByteBuffer里面的堆外内存发生泄漏。只有我们正确掌握了
+在JVM中, 一般只有通过DirectByteBuffer这一种方式操作堆外内存, 平时说的堆外内存泄漏, 也就是指的DirectByteBuffer里面的堆外内存发生泄漏。合理使用DirectByteBuffer对通信框架有着很重要的帮助, 比如netty大量的IO数据传输, 都是通过DirectByteBuffer完成的。 直接内存的申请与释放比较代价比较大, 一般都会辅助对象池来尽量高效的利用申请的对象。
