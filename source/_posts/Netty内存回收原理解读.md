@@ -1,5 +1,5 @@
 ---
-title: Netty堆外内存回收原理解读
+title: Netty堆外内存回收原理详解
 date: 2019-01-12 15:22:41
 tags:
 ---
@@ -409,5 +409,5 @@ freeChunk做了如下检查:
 ```
 # 总结
 整个netty池化内存回收过程如下:
-<img src="https://kkewwei.github.io/elasticsearch_learning/img/Netty堆外内存回收.png" height="400" width="950"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/Netty堆外内存回收.png" height="400" width="990"/>
 netty默认释放管理直接内存方式与DirectByteBuffer默认释放内存的方式不一致, 释放时会依次检查缓存、公共内存池, 若Poolchunk使用率为0, 那么16M直接内存将直接释放。
