@@ -1,7 +1,7 @@
 ---
 title: LockSupport原理分析
 date: 2018-11-10 17:16:56
-tags:
+tags: LockSupport
 ---
 LockSupport作为并发的基础, 在CountDownLatch、ReentrantLock、Semaphore、ReentrantReadWriteLock中都是作为阻塞/唤醒线程的基本工具, 因此, 很有必要了解LockSupport的用法及原理, 本文将从LockSupport基本用法、 类主要函数及相关知识、底层基本原理三方面分别描述。
 # 使用

@@ -3,7 +3,7 @@ title: git 基本命令学习心得-1
 date: 2017-03-08 12:46:57
 tags: git, rebase, cherry-pick, reset, checkout
 ---
-rebase, cherry-pick、merge等都有一个概念:提交commit, 就以下图为例, 把当一次提交D合并到另外一个提交E, 产生E', 这里的提交D指的当前D的所有全量代码, 去和E合并, 并不是由C commit到D时产生的增量代码去和E合并。一般在公共分支上操作,不能修改分支的提交记录, 但是可以使用cherry-pick, revert这样的可以使用, 而rebase, reset这样的命令一般在私有分支上才可用。
+一般在公共分支上操作,不能修改分支的提交记录, 但是可以使用cherry-pick, revert这样的可以使用, 而rebase, reset这样的命令一般在私有分支上才可用。
 # rebase
 git rebase是用来更改提交的基, 通过重新在当前分支提交一连串的commit来实现的, 比如dev分支从master A提交产生的, 在master分支又进行了B、C、D提交, 在dev分支进行了E、F、G提交, 此时为了保证D能够合并到master最新的D提交上, 那么就使用rebase。
 <img src="https://kkewwei.github.io/elasticsearch_learning/img/git_rebase3.png" height="300" width="550"/>
@@ -62,20 +62,19 @@ pick 159f932 d1
 本地rebase之后再向远程推送, 可能会冲突, 这时确定没有人在基于那个分支分发的话, 可以通过git push --force origin mybranch分支。 master一般不允许直接这么弄
 
 # cherry-pick
-cherry-pick主要是将单独的两次提交合并到一起, 以下图为例, 当前处于master的D提交上, 想让dev分支上的G提交合并到当前master分支上, 那么就执行:
-`git:(master D提交): git cherry-pick G`, 提交完成后, G提交出的本地全部代码就会和master分支D处全部代码合并, 产生提交D'。注意,这里虽然合并了, 但是并没有改变分支提交记录, 图中用虚线表达着从提交历史上看, D'和G毫无关联。
+cherry-pick主要是将一个分支单独的提交变化合并到另外一个分支上, 以下图为例, 当前处于master的D提交上, 想让dev分支上的G提交改变合并到当前master分支上, 那么就执行:
+`git:(master D提交): git cherry-pick G`, 提交完成后, G提交出的变化代码就会和master分支D处全部代码合并, 产生提交D'。注意,这里虽然合并了, 但是并没有改变分支提交记录, 图中用虚线表达着从提交历史上看, D'和G毫无关联。
 <img src="https://kkewwei.github.io/elasticsearch_learning/img/git_rebase10.png" height="350" width="450"/>
-
+cherry-pick在提取G提交的变化时, 能将变化抽取出来的, 就将变化提取出来, 能合并就合并。变化合并到D时, 有冲突就解决冲突。
 cherry-pick与rebase使用上的区别:
 rebase: 修改提交历史, 改变的是整个分支的提交基, 将每次提交都与另外一个分支提交一一合并。
 cherry-pick: 不会修改提交历史,仅仅产生一个新的提交。像挑选樱桃一样, 可以某个分支某次提交与另一个分支提交代码合并。
 
 # revert
-revert的含义是撤销(丢弃)某次提交, 下图为例, 比如想撤销G提交: `git:(master D提交): git revert G`, 实际就是丢弃G的提交, 具体实现是将G提交的父提交F的全部代码与D合并, 然后产生新的提交D'。
+revert的含义是撤销(丢弃)某次提交, 下图为例, 比如想撤销G提交: `git:(master D提交): git revert G`, 实际就是丢弃G的提交, 具体实现是将G提交变化从当前提交D中去掉, 然后产生新的提交D'。
 <img src="https://kkewwei.github.io/elasticsearch_learning/img/git_revert1.png" height="350" width="450"/>
 同cherry-pick一样, 并不改变历史提交记录, 仅仅将D和F(G的父提交)合并, 产生的新提交D'与G提交没有任何关系。
 比如`git:(master D提交): git revert HEAD`, 撤销最近一次提交(也就提交D提交), 可能要产生冲突, 解决冲突后通过git add、git revert --continue来完成此次操作。
-
 
 # checkout
 checkout主要是从`对象库中(仓库)`拿出一个提交, 然后放在工作目录中, HEAD会指向当前提交(前提是工作区、暂存区、本地仓库一致, 否则会冲突); 附带功能是从`暂存区(索引)`中检出文件来重置工作区的文件, 使用示例如下:
