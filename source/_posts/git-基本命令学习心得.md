@@ -69,6 +69,10 @@ cherry-pick在提取G提交的变化时, 能将变化抽取出来的, 就将变�
 cherry-pick与rebase使用上的区别:
 rebase: 修改提交历史, 改变的是整个分支的提交基, 将每次提交都与另外一个分支提交一一合并。
 cherry-pick: 不会修改提交历史,仅仅产生一个新的提交。像挑选樱桃一样, 可以某个分支某次提交与另一个分支提交代码合并。
+-m 参数
+git cherry-pick G -m 1/2等
+git show --pretty=raw xszdsdsdds
+https://stackoverflow.com/questions/12626754/git-cherry-pick-syntax-and-merge-branches/12628579#12628579
 
 # revert
 revert的含义是撤销(丢弃)某次提交, 下图为例, 比如想撤销G提交: `git:(master D提交): git revert G`, 实际就是丢弃G的提交, 具体实现是将G提交变化从当前提交D中去掉, 然后产生新的提交D'。
