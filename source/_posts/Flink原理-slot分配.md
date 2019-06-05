@@ -486,7 +486,7 @@ public void deploy() throws JobException {
 ```
 可以看到:
 + 首先生成TaskDeploymentDescriptor, 包含部署subTask的所有信息。
-+ 调用taskManagerGateway.submitTask(deployment, rpcTimeout)进行部署subTask。
++ 调用taskManagerGateway.submitTask(deployment, rpcTimeout)进行部署subTask, JM接收RPC可参考:<a href="https://kkewwei.github.io/elasticsearch_learning/2019/04/20/Flink%E5%8E%9F%E7%90%86-Akka%E9%80%9A%E4%BF%A1%E6%A8%A1%E5%9D%97/">link原理-Akka通信原理</a> 。
 TaskManager端通过TaskExecutor.subTask()接受到JobManager发出的部署SubTask的申请, 这样就完成SubTask部署了。
 
 # SlotSharingGroup及共享slot

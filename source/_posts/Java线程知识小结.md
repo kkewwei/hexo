@@ -2,6 +2,7 @@
 title: Java 线程知识小结(-)
 date: 2016-10-27 14:18:30
 tags:
+toc: true
 ---
 # wait/notify/notifyAll:
 wait/notify用于线程通信的等待/通知模型, 这两个函数被定义在java.lang.Object类中, 被声明为final函数, 不可复写。使用时, 线程A调用object.wait(), 释放cpu进入等待; 线程B调用object.notify()来唤醒A线程。以下是基本的用法:

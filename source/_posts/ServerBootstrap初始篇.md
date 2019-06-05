@@ -2,6 +2,7 @@
 title: ServerBootstrap初始篇
 date: 2018-01-14 18:32:43
 tags: netty4, ServerBootstrap, Initiale
+toc: true
 ---
 &emsp;本文将以一个最简单的netty服务器端代码进行讲解。
 # 服务器示例

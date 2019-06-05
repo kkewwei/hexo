@@ -2,6 +2,7 @@
 title: Netty Thrift方式通信编解码源码解读
 date: 2018-03-25 11:11:12
 tags:
+toc: true
 ---
 # 介绍
 ## 零拷贝

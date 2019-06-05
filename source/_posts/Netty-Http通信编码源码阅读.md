@@ -2,6 +2,7 @@
 title: Netty Http通信源码二(编码)分析
 date: 2018-05-04 00:02:39
 tags:
+toc: true
 ---
 解码过程仍以<a href="https://kkewwei.github.io/elasticsearch_learning/2018/04/16/Netty-Http%E9%80%9A%E4%BF%A1%E8%A7%A3%E7%A0%81%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB/">Netty Http通信源码一(解码)阅读</a>提供的示例为例, 编码发送的主体DefaultFullHttpResponse如下:
 <img src="https://kkewwei.github.io/elasticsearch_learning/img/DefaultFullHttpResponse.png" height="250" width="500"/>

@@ -1,5 +1,5 @@
 ---
-title: Flink原理-Akka通信模块详解&TaskManager注册
+title: Flink原理-Akka通信&TaskManager注册
 date: 2019-04-20 23:16:59
 tags:
 toc: true
@@ -71,7 +71,7 @@ ask1
 Patterns.ask()
 system.actorSelection verify:true
 ```
-1. 在使用actorSelection函数的时候, 我们需要了解一个关键字<a href="https://doc.akka.io/docs/akka/2.3.6/java/untyped-actors.html#actorselection-java">Identify</a>, 它代表着一个每个角色都知道其含义的消息, 当接收到Identify时, 角色自动回复ActorIdentity, 其中包含着对角色的引用。这样就可以获取到该角色了。
+1. 在使用actorSelection函数的时候, 我们需要了解一个关键字<a href="https://doc.akka.io/docs/akka/2.3.6/java/untyped-actors.html#actorselection-java">Identify</a>, 它被定义为每个角色都知道其含义的消息, 当接收到Identify时, 角色自动回复ActorIdentity, 其中包含着对地址的角色。actorSelection可以获取该角色的引用, 这样就可以首先和该角色通信了。
 2. ask和tell的区别是, ask希望对方角色返回结果, 而tell不需要返回结果。
 
 # Akka RPC通信过程
@@ -134,12 +134,11 @@ system.actorSelection verify:true
 ```
 可以看到:
  1. 角色接收到信息后, 处理的类为FencedAkkaRpcActor/AkkaRpcActor。
- 2. 调用函数时的接口handler也分为FencedAkkaInvocationHandler/AkkaInvocationHandler。
- 每次代理GateWay请求时, 首先会调用AkkaInvocationHandler.invoke()类。
+ 2. 调用函数时的接口handler也分为FencedAkkaInvocationHandler/AkkaInvocationHandler。每次代理GateWay请求时, 首先会调用AkkaInvocationHandler.invoke()类。
 我们再来介绍下: RpcServer, RpcServer作为任何一个请求终端, 每次都将从相同的AkkaRpcService中参数, 实际封装了ActorRef来进行内部数据传输。
 
 # TM向JM注册
-我们以TaskManager启动后, 会去主动连接JobMaster的ResourceManager, 以它们之间的通信为例进行讲解, 首先进入connectToResourceManager:
+我们以TaskManager启动后, 会去主动连接JobMaster的ResourceManager, 以它们之间的通信为例进行讲解。YarnTaskExecutorRunner在运行主函数时, 会去调用TaskExecutor.connectToResourceManager()主动连接JobManager:
 ```
     private void connectToResourceManager() {
         log.info("Connecting to ResourceManager {}.", resourceManagerAddress);
@@ -168,7 +167,7 @@ system.actorSelection verify:true
 	}
 ```
 该函数主要做了如下事情:
-1. 通过createNewRegistration构建ResourceManagerRegistration, 这里只是构建赋值。同时在父类RetryingRegistration中定义了一个CompletableFuture, 当complete时候(成功向jm注册后), 会去调用TaskExecutorToResourceManagerConnection.onRegistrationSuccess(), 之后会详细介绍。
+1. 通过createNewRegistration构建ResourceManagerRegistration对象, 并没有做其他的事。同时在父类RetryingRegistration中定义了一个CompletableFuture, 当complete时候(成功向jm注册后), 会去调用TaskExecutorToResourceManagerConnection.onRegistrationSuccess(), 之后会详细介绍。
 2. 通过AkkaRpcService.startRegistration真正开始注册TaskManager。接下来看下如何向JobManager的ResourceManager注册该TaskManager。
 ```
     public void startRegistration() {
@@ -217,7 +216,6 @@ private <C extends RpcGateway> CompletableFuture<C> connectInternal(
 		final CompletableFuture<ActorRef> actorRefFuture = identifyFuture.thenApply(
 			(ActorIdentity actorIdentity) -> {
 				if (actorIdentity.getRef() == null) {
-					throw new CompletionException(new RpcConnectionException("Could not connect to rpc endpoint under address " + address + '.'));
 				} else {
 				    //获取对应的引用
 					return actorIdentity.getRef();
@@ -247,7 +245,7 @@ private <C extends RpcGateway> CompletableFuture<C> connectInternal(
 	}
 ```
 连接请求也比较简单, 每次RPC调用时, 都使用ask:
-1. 向ResourceManager发送Identify, 远程相应并发返回对应路径的引用及对应的角色
+1. 向ResourceManager发送Identify, 远程响应并发返回对应路径的角色
 2. 向ResourceManager发送RemoteHandshakeMessage, 再次和远程确认。
 3. 以上两个RPC调用完成后, 构建针对ResourceManagerGateway的代理, 其中handler为FencedAkkaInvocationHandler(rpcEndpoint=ActorRef)。
 
@@ -256,7 +254,8 @@ private <C extends RpcGateway> CompletableFuture<C> connectInternal(
 ```
     private void register(final G gateway, final int attempt, final long timeoutMillis) {
 		try {
-			log.info("Registration at {} attempt {} (timeout={}ms)", targetName, attempt, timeoutMillis); // 跑到ResourceManagerConnection.invokeRegistration
+		    // 跑到ResourceManagerConnection.invokeRegistration
+			log.info("Registration at {} attempt {} (timeout={}ms)", targetName, attempt, timeoutMillis);
 			CompletableFuture<RegistrationResponse> registrationFuture = invokeRegistration(gateway, fencingToken, timeoutMillis);
 			// if the registration was successful, let the TaskExecutor know
 			CompletableFuture<Void> registrationAcceptFuture = registrationFuture.thenAcceptAsync(
@@ -279,7 +278,7 @@ private <C extends RpcGateway> CompletableFuture<C> connectInternal(
 	}
 ```
 可以看到:
-1. register中真正向ResourceManager通信的是invokeRegistration。
+1. register中真正向ResourceManager通信的是invokeRegistration()。
 2. 将completionFuture置为完成, 那么将触发之前定义的TaskExecutorToResourceManagerConnection.onRegistrationSuccess()。
 我们先看invokeRegistration的实现逻辑:
 ```
@@ -321,8 +320,8 @@ resourceManager.registerTaskExecutor将首先跑到FencedAkkaInvocationHandler.i
 	}
 ```
 最终通过ask将请求发送出去, 其中包括函数名, 参数等信息。
-## 远程ResourceManager接收到请求
-我们可以看到在构建YarnResourceManager时, resourceManagerEndpointId为resourcemanager, 最终其ActorRef对应的直接地址为: akka.tcp://flink@jobmanager:port/user/resourcemanager, 印证了之前TM注册时通信的终端就是该类。在ActorRef构建过程中, 知道JM接受处理类为AkkaRpcActor.onReceive(FencedAkkaRpcActor父类), 继续调用的是handleRpcMessage()
+# 远程ResourceManager接收到请求
+我们可以看到在构建YarnResourceManager时, resourceManagerEndpointId为`resourcemanager`, 最终其ActorRef对应的直接地址为: akka.tcp://flink@jobmanager:port/user/resourcemanager, 印证了之前TM向JM注册时, JM通信的终端就是该类。在ActorRef构建过程中, 知道JM接受处理类为AkkaRpcActor.onReceive(FencedAkkaRpcActor父类), 继续调用的是handleRpcMessage()
 ```
 	protected void handleRpcMessage(Object message) {
 		if (message instanceof RunAsync) {
@@ -401,9 +400,9 @@ flink针对不同类型的消息, 使用调用的函数, 很显然, 这里调用
 				"not recognize it", taskExecutorResourceId, taskExecutorAddress);
 			return new RegistrationResponse.Decline("unrecognized TaskExecutor");
 		} else {
-			WorkerRegistration<WorkerType> registration =    //taskExecutorGateway=AkkaInvocationHandler，  newWorker = YarnWorkerNode
+			WorkerRegistration<WorkerType> registration =
+			    //taskExecutorGateway=AkkaInvocationHandler，  newWorker = YarnWorkerNode
 				new WorkerRegistration<>(taskExecutorGateway, newWorker, dataPort, hardwareDescription);
-			log.info("Registering TaskManager with ResourceID {} ({}) at ResourceManager", taskExecutorResourceId, taskExecutorAddress);
 			// 统计活跃而Container。
 			taskExecutors.put(taskExecutorResourceId, registration);
 			taskManagerHeartbeatManager.monitorTarget(taskExecutorResourceId, new HeartbeatTarget<Void>() {
@@ -429,8 +428,9 @@ ResourceManager注册主要做了如下事情:
 1. 从taskExecutors中删除旧的通信管道。
 2. 跑到YarnResourceManager.workerStarted()里面, 从JM端根据获取当初yarn分配的Container。
 3. 向taskExecutors添加新产生的管道WorkerRegistration。管道里包含TaskExecutorGateway的代理, 其中handler为AkkaInvocationHandler, 且包含连接JobManager的ActorRef。
-4. 对连接的TM添加监控。然后相应TM。
-## TM接收到JM响应
+4. JM对连接的TM添加监控。然后响应TM。
+
+# TM接收到JM响应
 当TM接收到JM响应, 就会回调之前定义的TaskExecutorToResourceManagerConnection.onRegistrationSuccess()。
 ```
 	private void establishResourceManagerConnection(
@@ -467,3 +467,9 @@ ResourceManager注册主要做了如下事情:
 		stopRegistrationTimeout();
 	}
 ```
+TM当收到Response, 回调函数做了如下事情:
+1. 通过resourceManagerGateway.sendSlotReport向YarnResourceManager汇报当前TM可用slot, 可用slot都将保存在 JobManager ResourceManager.freeSlots里面。
+2. 开始向ResourceManager上报心跳。
+
+# 总结
+可以看到, Akka通信最底层依靠的是Patterns.ask来完成, 整个通信流程也是比较清晰的。

@@ -2,6 +2,7 @@
 title: LinkedTransferQueue原理分析
 date: 2018-12-15 18:59:58
 tags:
+toc: true
 ---
 LinkedTransferQueue作为无边界的阻塞队列, 同时继承了TransferQueue和AbstractQueue。 相较于其他的阻塞队列:  LinkedTransferQueue特殊之处在于TransferQueue接口。 TransferQueue说明如下:
 >* Transfers the element to a waiting consumer immediately, if possible. More precisely, transfers the specified element immediately if there exists a consumer already waiting to receive it (in {@link #take} or timed {@link #poll(long,TimeUnit) poll}), otherwise returning {@code false} without enqueuing the element.

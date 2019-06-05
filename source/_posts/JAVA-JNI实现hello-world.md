@@ -2,6 +2,7 @@
 title: JAVA JNI实现hello world
 date: 2017-06-15 18:15:08
 tags:
+toc: true
 ---
 jvm作为扩平台执行的环境, 屏蔽了代码与底层操作系统打交道, 这样代码就可以在不同平台下无缝迁移。但是也有一个坏处, java不能访问底层硬件资源并且执行速度相对c/c++很慢, 要是可以在java代码中调用c/c++语言, 那就可以弥补这方面的不足。 JNI(java native interface)就是来作为沟通桥梁的。 当函数被定义为native, 就说明本函数不是用java语言编写的。 本文展示java 如何使用native来调用c++代码的。
 # 使用

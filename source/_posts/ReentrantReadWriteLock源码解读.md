@@ -2,6 +2,7 @@
 title: ReentrantReadWriteLock源码解读
 date: 2017-07-28 06:18:19
 tags:
+toc: true
 ---
 首先回顾下ReentrantLock、CountDownLatch的区别: ReentrantLock是互斥锁, CountDownLatch是共享锁, 有没有哪种锁能够部分场景互斥, 部分场景共享呢, 那就是本文的主角:ReentrantReadWriteLock, 也是以AQS为基础实现的第三种应用。 要注意, ReentrantReadWriteLock与ReentrantLock没有一点关系。基本使用如下:
 ```
