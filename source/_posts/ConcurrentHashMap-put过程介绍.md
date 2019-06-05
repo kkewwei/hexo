@@ -2,6 +2,7 @@
 title: ConcurrentHashMap Put源码介绍
 date: 2017-11-05 11:20:55
 tags:
+toc: true
 ---
 在平时项目中, 较多的使用了HashMap容器, 但是它是非线程安全的, 在多线程put的时候, 可能会导致HashMap产生环链而导致死锁。 在并发场景下, 我们就得换成ConcurrentHashMap, 采用分段、红黑树等结构体, 支持多线程同时插入, 又拥有较高的性能。本文章将围绕put的过程进行详细描述。
 首先放张大图, 对ConcurrentHashMap先有大致的了解。

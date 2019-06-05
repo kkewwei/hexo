@@ -2,6 +2,7 @@
 title: CountDownLatch源码分析
 date: 2017-08-24 16:47:06
 tags:
+toc: true
 ---
 CountDownLatch也是线程同步的一个工具, 底层也是使用AQS(参考<a href="https://kkewwei.github.io/elasticsearch_learning/2017/07/23/ReentrantLock%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/">ReentrantLock源码解读</a>)来进行锁的互斥。
 CountDownLatch与ReentrantLock的主要区别是:

@@ -2,6 +2,7 @@
 title: Condition接口原理介绍及ArrayBlockingQueue、LinkedBlockingQueue实现
 date: 2017-10-02 19:28:01
 tags:
+toc: true
 ---
 任何一个java对象都拥有wait()/nitify方法, 它们通过与synchronized结合(参考<a href="https://kkewwei.github.io/elasticsearch_learning/2016/10/27/Java%E7%BA%BF%E7%A8%8B%E7%9F%A5%E8%AF%86%E5%B0%8F%E7%BB%93/">Java 线程知识小结(-)</a>)来实现线程之间的通信机制。 在锁方面Lock与Condition接口配合也实现了相同的功能, 但是它们之间的原理是不相同的。使用上两者的区别如下(图片摘自<a href="https://www.jianshu.com/p/be2dc7c878dc">java并发编程之Condition</a>)):
 <img src="https://kkewwei.github.io/elasticsearch_learning/img/Condition1.png" height="400" width="500"/>
