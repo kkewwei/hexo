@@ -1,13 +1,13 @@
 ---
-title: Flink原理-SubTask申请slot及部署
+title: Flink原理-JobManager端的SubTask申请slot及部署
 date: 2019-03-12 20:04:11
 tags: Flink、Slot分配、SubTask申请slot, SubTask部署
 toc: true
 ---
 本文将从ExecutionGraph开始向后讲起, ExecutionGraph定义了Job的并发逻辑结构, 作为任务执行的以后一层逻辑结构, 也是最核心数据结构。为了让大家有全局的了解, 先盗一张广为引用的Graph转换图:
 <img src="https://kkewwei.github.io/elasticsearch_learning/img/Flink_Graph.png" height="900" width="800"/>
-具体来说, 本文讲述subTask申请slot以及, 部署到TaskManager上的过程。
-# Task分配及部署
+具体来说, 本文讲述在JobManager端subTask申请slot以及部署到TaskManager上的过程。
+# Task分配slot及部署
 代码将从ExecutionGraph.scheduleExecutionGraph()开始讲解, 进入:
 ```
 	public void scheduleForExecution() throws JobException {
@@ -409,6 +409,153 @@ public void connectToResourceManager(ResourceManagerGateway resourceManagerGatew
 internalRequestSlot做了如下逻辑:
 + 通过findMatchingSlot检查是否有现成可用的slot, 其中freeSlots包含着availiable slot. 比如在每当有新的TaskManager向JobManager注册时, 就会调用SlotManager.registerSlotRequest(), 在freeSlots中注册该TM可用的slot。若有可用slot时候, 就会调用allocateSlot进行分配。
 + 若没有可用空闲slot, 通过allocateResource申请TM, 最终会调用YarnResourceManager.requestYarnContainer进行申请。
+我们再分别以这两种情况继续介绍。
+#### JobManager端有某个TM注册的可用slot
+若JM端有某个TM注册的可用slot, 那么就会进入allocateSlot来将这个slot分配给这个SubTask:
+```
+	private void allocateSlot(TaskManagerSlot taskManagerSlot, PendingSlotRequest pendingSlotRequest) {
+		TaskExecutorConnection taskExecutorConnection = taskManagerSlot.getTaskManagerConnection();
+		TaskExecutorGateway gateway = taskExecutorConnection.getTaskExecutorGateway();
+
+		final CompletableFuture<Acknowledge> completableFuture = new CompletableFuture<>();
+		final AllocationID allocationId = pendingSlotRequest.getAllocationId();
+		final SlotID slotId = taskManagerSlot.getSlotId();
+		final InstanceID instanceID = taskManagerSlot.getInstanceId();
+
+		taskManagerSlot.assignPendingSlotRequest(pendingSlotRequest);
+		pendingSlotRequest.setRequestFuture(completableFuture);
+
+		TaskManagerRegistration taskManagerRegistration = taskManagerRegistrations.get(instanceID);
+        // 既然这个TM上报的slot, 那么这个TM一定已经有注册信息了
+		if (taskManagerRegistration == null) {
+			throw new IllegalStateException("Could not find a registered task manager for instance id " +
+				instanceID + '.');
+		}
+		taskManagerRegistration.markUsed();
+		去向TM通信, 告诉TM这个slot已经被请求了
+		// RPC call to the task manager
+		CompletableFuture<Acknowledge> requestFuture = gateway.requestSlot(
+			slotId,
+			pendingSlotRequest.getJobId(),
+			allocationId,
+			pendingSlotRequest.getTargetAddress(),
+			resourceManagerId,
+			taskManagerRequestTimeout);
+
+		requestFuture.whenComplete(
+			(Acknowledge acknowledge, Throwable throwable) -> {
+				if (acknowledge != null) {
+					completableFuture.complete(acknowledge);
+				}
+			});
+
+		completableFuture.whenCompleteAsync(
+			(Acknowledge acknowledge, Throwable throwable) -> {
+				try {  //去更新本地slot状态, 从可用空闲slot中删掉
+					if (acknowledge != null) {
+						updateSlot(slotId, allocationId, pendingSlotRequest.getJobId());
+					}
+				} catch (Exception e) {
+					LOG.error("Error while completing the slot allocation.", e);
+				}
+			},
+			mainThreadExecutor);
+	}
+```
+JM请求某个slot逻辑也比较简单:
+1. JM直接告诉slot对应TM, 这个slot将被申请
+2. JM修改这个slot的状态, 并且从本地可用slot中删掉。然后等待subTask被部署到这个TM的slot上
+我们看下第一步JM是怎么告诉TM这个slot被申请的,  gateway.requestSlot直接通过RPC(通信逻辑<a href="https://kkewwei.github.io/elasticsearch_learning/2019/04/20/Flink%E5%8E%9F%E7%90%86-Akka%E9%80%9A%E4%BF%A1%E6%A8%A1%E5%9D%97/#TM%E5%90%91JM%E6%B3%A8%E5%86%8C">参考</a>)直接向TM的TaskExecutor.requestSlot去了, 我们看下TM是如何做处理的:
+```
+    /**
+	 * Add the given job to be monitored. This means that the service tries to detect leaders for
+	 * this job and then tries to establish a connection to it.
+	 */
+	public CompletableFuture<Acknowledge> requestSlot(
+		final SlotID slotId,
+		final JobID jobId,
+		final AllocationID allocationId,
+		final String targetAddress,
+		final ResourceManagerId resourceManagerId,
+		final Time timeout) {
+		log.info("Receive slot request {} for job {} from resource manager with leader id {}.",
+			allocationId, jobId, resourceManagerId);
+		try {
+			if (taskSlotTable.isSlotFree(slotId.getSlotNumber())) {
+				if (taskSlotTable.allocateSlot(slotId.getSlotNumber(), jobId, allocationId, taskManagerConfiguration.getTimeout())) {
+					log.info("Allocated slot for {}.", allocationId);
+				}
+			}
+			if (jobManagerTable.contains(jobId)) {
+				offerSlotsToJobManager(jobId);
+			} else {
+				try {
+					jobLeaderService.addJob(jobId, targetAddress);  // 跑进去
+				}
+			}
+		}
+		return CompletableFuture.completedFuture(Acknowledge.get());
+	}
+```
+主要逻辑如下:
+1. TM接收到JM的请求后, TM首先检查这个slot是否是空闲的, 若空闲的话, 就开始调用taskSlotTable.allocateSlot(), 将这个slot置为已分配。
+2. TM调用jobLeaderService.addJob将这个Job监控起来(每当有新的Job请求slot, 就会去检测job的leader, 并去和这个job leader建立链接),最终调用JobManagerLeaderListener.notifyLeaderAddress()->JobManagerRegisteredRpcConnection.start():
+```
+    public void start() {
+		checkState(!closed, "The RPC connection is already closed");
+		checkState(!isConnected() && pendingRegistration == null, "The RPC connection is already started");
+		final RetryingRegistration<F, G, S> newRegistration = createNewRegistration();
+		if (REGISTRATION_UPDATER.compareAndSet(this, null, newRegistration)) {
+			newRegistration.startRegistration();
+		} else {
+			// concurrent start operation
+			newRegistration.cancel();
+		}
+	}
+```
+这里是不是有点熟悉, 可以参考下<a href="https://kkewwei.github.io/elasticsearch_learning/2019/04/20/Flink%E5%8E%9F%E7%90%86-Akka%E9%80%9A%E4%BF%A1%E6%A8%A1%E5%9D%97/#TM%E5%90%91JM%E6%B3%A8%E5%86%8C">这里</a>, startRegistration主要是向JM发送申请成功通知, TM成功后回调JobManagerRegisteredRpcConnection.onRegistrationSuccess, 最终调用TaskExecutor.establishJobManagerConnection:
+```
+	private void establishJobManagerConnection(JobID jobId, final JobMasterGateway jobMasterGateway, JMTMRegistrationSuccess registrationSuccess) {
+		if (jobManagerTable.contains(jobId)) {
+			JobManagerConnection oldJobManagerConnection = jobManagerTable.get(jobId);
+
+			if (Objects.equals(oldJobManagerConnection.getJobMasterId(), jobMasterGateway.getFencingToken())) {
+				// we already are connected to the given job manager
+				log.debug("Ignore JobManager gained leadership message for {} because we are already connected to it.", jobMasterGateway.getFencingToken());
+				return;
+			}
+		}
+		ResourceID jobManagerResourceID = registrationSuccess.getResourceID();
+		JobManagerConnection newJobManagerConnection = associateWithJobManager(
+				jobId,
+				jobManagerResourceID,
+				jobMasterGateway);
+		jobManagerConnections.put(jobManagerResourceID, newJobManagerConnection);
+		jobManagerTable.put(jobId, newJobManagerConnection);  // 设置的是每个Job在TM这里的注册
+
+		// monitor the job manager as heartbeat target
+		jobManagerHeartbeatManager.monitorTarget(jobManagerResourceID, new HeartbeatTarget<AccumulatorReport>() {
+			@Override
+			public void receiveHeartbeat(ResourceID resourceID, AccumulatorReport payload) {
+				jobMasterGateway.heartbeatFromTaskManager(resourceID, payload);
+			}
+
+			@Override
+			public void requestHeartbeat(ResourceID resourceID, AccumulatorReport payload) {
+				// request heartbeat will never be called on the task manager side
+			}
+		});
+
+		offerSlotsToJobManager(jobId);
+	}
+```
+主要做了如下事情:
+1. 检查这个job是否已经在TM端注册了, 若注册了, 那么就直接返回
+2. 否则建立job->JobManagerConnection, 将映射关系放入TaskExecutor的jobManagerTable中, 然后监控这个job master。
+3. 调用offerSlotsToJobManager, 告诉JM, 分配给Task这个slot。
+
+#### JobManager端没有TM注册的可用slot
+若没有可用slot的话, 那么就只能去申请TM, 申请的TM会上报可用slot, 然后再向这个TM申请部署SubTask, 此时就回到了有可用slot的情况了。我们看下是如何申请TM的。
 ```
     // //resource 是当前申请的container情况，比如<memory:6552, vCores:4>
     private void requestYarnContainer(Resource resource, Priority priority) {
@@ -459,7 +606,7 @@ internalRequestSlot做了如下逻辑:
 回调函数主要做了如下逻辑:
 1. 确定启动taskManager的命令。
 2. 通过yarn启动taskManager。
-我们来放一张整体逻辑图像:
+我们来放一张整体JobManager端分配Slot的流程图:
 <img src="https://kkewwei.github.io/elasticsearch_learning/img/Flink_slot_allocate1.png" height="300" width="800"/>
 
 ## 部署subTask到对应的slot
