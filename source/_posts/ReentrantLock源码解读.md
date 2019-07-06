@@ -10,9 +10,11 @@ ReentrantLock作为线程之间相互通信的工具, 在实际项目中较多�
 ReentrantLock lock = new ReentrantLock(true);
 //尝试获取锁,获取不到就阻塞
 lock.lock();
+......
 //释放锁,获取完了唤醒被阻塞的线程
 lock.unlock();
 ```
+我们需要注意, 调用lock.lock()和lock.unlock()的线程必须是一个, lock.unlock()会对线程检查, 只有当调用lock.lock()的线程和本线程一致, 才可以解锁。可以看到, 是不是很像关键字synchronized的作用?
 # 简介
 AbstractQueuedSynchronizer，顾名思义，抽象队列同步器，作为抽象类，使用FIFO链，实现了锁的语义, 在CountDownLatch、Semaphore都可以看到该类的实现。
 ## AbstractQueuedSynchronizer详解
