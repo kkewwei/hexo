@@ -55,7 +55,7 @@ Max realtime timeout      unlimited            unlimited            us
 ## 分析coredump文件
 + gdb java core
 调用如上命令加载core文件(这里的core指的是core文件名称)。
-1. 执行`info threads`
+1. 执行`info threads`, 其实可以通过`info`查看需要详细数据
 ```
 #0  0xb776b424 in __kernel_vsyscall ()
 (gdb) info threads
@@ -87,7 +87,7 @@ Max realtime timeout      unlimited            unlimited            us
 #5  0xb772d149 in JLI_Launch () from /home/kewei/Downloads/work_soft/jdk1.8.0_121/bin/../lib/i386/jli/libjli.so
 #6  0x0804858d in main ()
 ```
-3. 查看每个register值
+3. 查看每个register值: `info registers`(简写`i r`)
 ```
         0xfffffe00	-512
 ecx            0x0	0

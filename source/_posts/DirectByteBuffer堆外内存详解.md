@@ -234,7 +234,22 @@ private static class Deallocator  implements Runnable
 
 ```
 可以看到, 此时完成了DirectByteBuff直接内存的释放。
+可能有些人会好奇: 为什么IO操作不直接使用堆内内存? 这是因为堆内内存会发生GC移动操作, 对象移动后, 其绝对内存地址也会发生改变, 而gc时对象移动操作很频繁, 不可能每次移动堆内数据, IO时缓存的buffer也跟着一起移动。这样也是不合理的。 而IO操作直接使用堆外内存则没有了这一限制。同时jvm中IO操作的Buffer必须是DirectBuffer(可查看IO.write/read函数)。
+# 堆外内存的检测
+1. 通过DirectByteBuffer申请的堆外内存, 我们可以通过如下的方式获取到:
+```
+    List<BufferPoolMXBean> bufferPools = ManagementFactory.getPlatformMXBeans(BufferPoolMXBean.class);
+        for (BufferPoolMXBean bufferPool : bufferPools) {
+            System.out.println("name: " + bufferPool.getName() + ", getCount:  " + bufferPool.getCount() +  ", getTotalCapacity:  " + bufferPool.getTotalCapacity() + ", getMemoryUsed:  " + bufferPool.getMemoryUsed());
+    }
+```
+将会打印如下结果:
+```
+name: direct, getCount:  1, getTotalCapacity:  1073741824, getMemoryUsed:  1073741824
+name: mapped, getCount:  0, getTotalCapacity:  0, getMemoryUsed:  0
+```
+direct部分内存就是了。
+2. 若我们直接通过base = unsafe.allocateMemory(size)申请内存, 此块内存已不是JVM控制的了, 我们不能再通过上面那种方式检测出来了。对于这种内存申请, 需要别的方式来获取直接内存使用状态。
 
-可能有些人会好奇: 为什么IO操作不直接使用堆内内存? 这是因为堆内内存会发生GC移动操作, 对象移动后, 其绝对内存地址也会发生改变, 而gc时对象移动操作很频繁, 不可能每次移动堆内数据, IO时缓存的buffer也跟着一起移动。这样也是不合理的。 而IO操作直接使用堆外内存则没有了这一限制。同时jvm中IO操作的Buffer必须是DirectBuffer(可查看IO.write/read函数)
 # 总结
 在JVM中, 一般只有通过DirectByteBuffer这一种方式操作堆外内存, 平时说的堆外内存泄漏, 也就是指的DirectByteBuffer里面的堆外内存发生泄漏。合理使用DirectByteBuffer对通信框架有着很重要的帮助, 比如netty大量的IO数据传输, 都是通过DirectByteBuffer完成的。 直接内存的申请与释放比较代价比较大, 一般都会辅助对象池来尽量高效的利用申请的对象。

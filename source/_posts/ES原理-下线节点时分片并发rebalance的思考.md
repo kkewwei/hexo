@@ -2,6 +2,7 @@
 title: ES原理-下线节点时分片并发rebalance的思考
 date: 2019-06-16 22:29:49
 tags:
+toc: true
 ---
 # 现象
 最近在下线ES5.6.8集群节点时候, 发现了一个很奇怪的现象, 我先把cluster参数给贴出来看下:
@@ -280,4 +281,4 @@ rebalance时, 以index来循环, 大概逻辑就是:
 2. 从分值高低差的阈值来判断是否需要rebalance。阈值为1。
 
 # 总结
-move, rebalance, allocation等操作都是由多个决策器一起决定如何分配的, 只要合理使用各种决策器, 那么分片分配就能被我们合理的掌握了。
+若仅仅增加节点, 那么就是rebalance操作, 此时cluster_concurrent_rebalance是生效的。 若做了exclude操作, 那么就变成了move操作, 此时node_concurrent_recoveries就该生效了。 move, rebalance, allocation等操作都是由多个决策器一起决定如何分配的, 只要合理使用各种决策器, 那么分片分配就能被我们合理的掌握了。

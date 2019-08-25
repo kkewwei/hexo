@@ -336,7 +336,7 @@ private boolean encodeContent(HttpContent c, List<Object> out) {
 + 直接调用gzip的压缩算法, 将byte压缩后写入out中. 至于具体的压缩算法, 感兴趣的同学可以自行查看源代码。
 
 
-## DefalueChannalHadlerContext.write()
+# DefalueChannalHadlerContext.write()
 DefalueChannalHadlerContext.write()函数之前的工作主要是编码部分、组成帧。 这里开始将压缩后最终的帧继续向外传递write。
 接下来OutHanlder为HttpResponseEncoder, 实际调用的是其父类MessageToMessageEncoder.write(), 该函数已经在最开始介绍了; 其中调用了HttpObjectEncoder.encode(), 函数如下:
 ```
@@ -645,5 +645,70 @@ protected void doWrite(ChannelOutboundBuffer in) throws Exception {
 该函数主要做了如下事情:
 1. 通过in.nioBuffers() 获取content的直接内存DirectByteBuf[]
 2. 当content个数>=1时, 通过for 循环发送config().getWriteSpinCount()次, 为什么这样做? 是以免一次数据量太大了, 发送一次发送不完, 默认可以连续发送16次。ch.write()这个函数是不是又很常见了。
+
+# ChannelPromise什么时候返回success
+我们可能在代码里面回调addListener(), 使用如下:
+```
+ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
+```
+那么, addListener会在什么时候执行呢? 首先ctx.writeAndFlush(response)返回DefaultChannelPromise,  进入addListener()代码如下:
+```
+    @Override
+    public Promise<V> addListener(GenericFutureListener<? extends Future<? super V>> listener) {
+        checkNotNull(listener, "listener");
+        synchronized (this) {
+            addListener0(listener);
+        }
+        if (isDone()) {
+            notifyListeners();
+        }
+        return this;
+    }
+```
+可以看到, 只有isDone()为true时(result=SUCCESS), 才会调用notifyListeners()来执行listener里面的内容, 那么result在哪里会被设置为SUCCESS呢。根据代码显示, 当调用write写入数据时, 将promise连同数据以Entry的形式放入了ChannelOutboundBuffer中:
+```
+   public void addMessage(Object msg, int size, ChannelPromise promise) { //msg=PooledUnsafeDirectBtyeBuf
+        Entry entry = Entry.newInstance(msg, size, total(msg), promise);
+        if (tailEntry == null) {// //把消息封装成一个entry，然后塞到一个单链表中
+            flushedEntry = null;
+            tailEntry = entry;
+        } else { //注意若不是的话，形成的是一个链
+            Entry tail = tailEntry;
+            tail.next = entry;
+            tailEntry = entry;
+        }
+        if (unflushedEntry == null) {
+            unflushedEntry = entry;
+        }
+        // increment pending bytes after adding message to the unflushed arrays.
+        // See https://github.com/netty/netty/issues/1619
+        //修改当前缓冲区的水位
+        incrementPendingOutboundBytes(entry.pendingSize, false);
+    }
+```
+而在完成Flush到管道后, 回收本地缓存时, 会调用ChannelOutboundBuffer.remove()函数:
+```
+ public boolean remove() {
+        Entry e = flushedEntry;
+        if (e == null) {
+            clearNioBuffers();
+            return false;
+        }
+        Object msg = e.msg; //PooledUnsafeDirectByteBuf
+        ChannelPromise promise = e.promise;
+        int size = e.pendingSize;
+        removeEntry(e);
+        if (!e.cancelled) {
+            // only release message, notify and decrement if it was not canceled before.
+            ReferenceCountUtil.safeRelease(msg); //释放了直接内存地址，
+            safeSuccess(promise);
+            decrementPendingOutboundBytes(size, false, true);
+        }
+        // recycle the entry
+        e.recycle(); //释放Entry
+        return true;
+    }
+```
+可以看到safeSuccess(promise), 在这里面完成了将Promise置为True, 同时调用notifyListeners()来唤醒监听器。
 
 至此, write到缓存、flush到网络部分全部讲完了。
