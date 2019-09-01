@@ -34,7 +34,7 @@ Netty自己进行内存管理, 将内存主要分为Tiny, small, normal等size�
     private int allocations;
 
 ```
-`heapArena`与`directArena`作用一样, 根据用户使用direct内存还是heap内存来确定使用哪个块。由构造函数可以看出directArena与PoolThreadCache绑定了, 同时PoolThreadCache也与某个NioEventLoop对应的线程绑定的, 所以该NioEventLoop线程都与唯一的directArena(&heapArena)绑定着, 这样相对减轻了线程间申请内存导致互斥的发生。`smallSubPageHeapCaches`数组长度为4(如上图所示), 依次缓存[512K, 1024k, 2048k, 4096k]大小的缓存, 每个的元素对应的缓存queue个数不能超过256个; 而tinySubPageHeapCaches数组缓存的是[16B, 32B, ... , 496B]大小的内存块, 每个元素对应的缓存queue个数不能超过512个。`normalHeapCaches`数组结构相同, 但是只缓存[8k, 16k, 32k]大小的内存块, 每个元素对应的缓存queue个数不超过64个。 normal最大内存块为16m, 而缓存仅仅缓存最大32k内存的原因是这是一种巨大的开销: 试想仅仅16m对应的级别存储, 就可缓存16M*64大小的内存块放在内存, 而这些内存块等着被新分配出去而没有主动释放, 存在巨大的浪费。 至于tiny、small、normal缓存每一等级划分规则, 可参考<a href="https://kkewwei.github.io/elasticsearch_learning/2018/07/14/Netty-PoolThreadCache%E6%BA%90%E7%A0%81%E6%8E%A2%E7%A9%B6/"> Netty PoolArea内存原理探究</a>
+`heapArena`与`directArena`作用一样, 根据用户使用direct内存还是heap内存来确定使用哪个块。由构造函数可以看出directArena与PoolThreadCache绑定了, 同时PoolThreadCache也与某个NioEventLoop对应的线程绑定的, 所以该NioEventLoop线程都与唯一的directArena(&heapArena)绑定着, 这样相对减轻了线程间申请内存导致互斥的发生。`smallSubPageHeapCaches`数组长度为4(如上图所示), 依次缓存[512K, 1024k, 2048k, 4096k]大小的缓存, 每个的元素对应的缓存queue个数不能超过256个; 而tinySubPageHeapCaches数组缓存的是[16B, 32B, ... , 496B]大小的内存块, 每个元素对应的缓存queue个数不能超过512个。`normalHeapCaches`数组结构相同, 但是只缓存[8k, 16k, 32k]大小的内存块, 每个元素对应的缓存queue个数不超过64个。 normal最大内存块为16m, 而缓存仅仅缓存最大32k内存的原因是这是一种巨大的开销: 试想仅仅16m对应的级别存储, 就可缓存16M*64大小的内存块放在内存, 而这些内存块等着被新分配出去而没有主动释放, 存在巨大的浪费。 至于tiny、small、normal缓存每一等级划分规则, 可参考<a href="https://kkewwei.github.io/elasticsearch_learning/2018/05/23/Netty%E5%86%85%E5%AD%98%E5%AD%A6%E4%B9%A0/"> Netty PoolArea内存原理探究</a>
  由于normalHeapCaches的特殊性, 如下展示该部分的代码实现:
  ```
  private static <T> MemoryRegionCache<T>[] createNormalCaches(

@@ -32,7 +32,7 @@ Netty内存主要分为两种: DirectByteBuf和HeapByteBuf, 实际上就是堆�
 + 获取该线程绑定的PoolThreadCache(可参考<a href="https://kkewwei.github.io/elasticsearch_learning/2018/07/14/Netty-PoolThreadCache%E6%BA%90%E7%A0%81%E6%8E%A2%E7%A9%B6/">Netty PoolThreadCache原理探究</a>)
 + 从绑定的PoolThreadCache中获取PoolArena, 从PoolArena中开始真正分配内存。
 注意这里的一个细节:
-1. 若通过非池申请的内存, 使用的是ByteBuffer.allocate(maxCapacity);直接分配内存, 那么我们可以通过ManagementFactory.getPlatformMXBeans()方式获取到该内存块的大小。
+1. 若通过非池申请的直接内存, 使用的是ByteBuffer.allocateDirect(maxCapacity)分配内存, 那么我们可以通过ManagementFactory.getPlatformMXBeans()方式获取到该内存块的大小。这样申请的堆外内存大小受参数XX:MaxDirectMemorySize控制。
 2. 若以内存池的方式申请内存, 使用的是unsafe.allocateMemory(size)方式申请内存, 此块内存已不再jvm管理范围之类, 我们不能再通过ManagementFactory.getPlatformMXBeans()方式获取该内存大小, 在netty中, 是通过PlatformDependent.DIRECT_MEMORY_COUNTER来统计的。
 
 # PoolArena

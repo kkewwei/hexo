@@ -1,7 +1,7 @@
 ---
-title: JAVA NIO原理1
+title: JAVA NIO通信分析
 date: 2017-04-10 10:54:35
-tags:
+tags: NIO
 toc: true
 ---
 JAVA NIO作为Java网络通信模块最基本的单元, 而在实践中, 我们都会接触到网络通信, 搞懂JAVA NIO, 对我们排查问题起到事半功倍的效果。 本文将带你进入JAVA NIO函数及底层本地函数的世界。
@@ -138,6 +138,7 @@ int main(){
     //接收客户端请求
     struct sockaddr_in clnt_addr;
     socklen_t clnt_addr_size = sizeof(clnt_addr);
+    // 可能被阻塞, 等待用户连接
     int clnt_sock = accept(serv_sock, (struct sockaddr*)&clnt_addr, &clnt_addr_size);
     if (clnt_sock < 0) { // 有异常退出
         if (errno == EAGAIN)
@@ -192,7 +193,8 @@ int main(){
 }
 ```
 建立通信过程是一样的, 大致如下:
-<img src="https://kkewwei.github.io/elasticsearch_learning/img/nio.png" height="300" width="400"/>, 本文将围绕server端每一个步骤结合java本地实现进行详细介绍。
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/nio.png" height="300" width="400"/>
+本文将围绕server端每一个步骤结合java本地实现进行详细介绍。
 
 # 产生IO复用选择器
 服务器端第一步就是调用ServerSocketChannel.open()函数, 首先产生IO复路选择器提供者:
@@ -225,12 +227,10 @@ int main(){
 
 # 设置非阻塞
 套接字默认为阻塞的, 当发出一个不能完成的套接字调用时, 进程将阻塞, 可能阻塞的调用分为以下四个方面(参考《UNIX网络编程卷1: 套接字联网API》:
-1. 输入操作, 比如read, readv, recv, recvfrom, recvmsg5个函数, 对一个TCP套接字调用这些函数时, 而且该套接字的接收缓存区没有数据可读取, 该线程将睡眠, 直到有一些数据到达, 既然TCP是字节流协议, 该进程的唤醒就是只要有一些数据到达, 这些数据既可能是单个字节, 也可能是一个完整地TCP分节中的数据, 如果想要等到某个固定树木的数据可读为止, 那么可以调用readn函数, 或者指定MSG_WAITALL标志。<br>
-&#160; &#160; &#160; &#160;既然UDP是数据报协议, 如果一个阻塞的UDP套接字为空, 对它调用的进程将被投入睡眠, 直到有UDP数据报到达。
-&#160; &#160; &#160; &#160;对于非阻塞的套接字, 如果一个操作不能被满足(对于TCP套接字至少有一个字节可读, 对于UDP至少有一个完整地数据报可读))。
+1. 输入操作, 比如read, readv, recv, recvfrom, recvmsg5个函数, 对一个TCP套接字调用这些函数时, 而且该套接字的接收缓存区没有数据可读取, 该线程将睡眠, 直到有一些数据到达, 既然TCP是字节流协议, 该进程的唤醒就是只要有一些数据到达, 这些数据既可能是单个字节, 也可能是一个完整地TCP分节中的数据, 如果想要等到某个固定树木的数据可读为止, 那么可以调用readn函数, 或者指定MSG_WAITALL标志。
+&#160; &#160; &#160; &#160;既然UDP是数据报协议, 如果一个阻塞的UDP套接字为空, 对它调用的进程将被投入睡眠, 直到有UDP数据报到达。对于非阻塞的套接字, 如果一个操作不能被满足(对于TCP套接字至少有一个字节可读, 对于UDP至少有一个完整地数据报可读))。
 2. 输出操作, 包括write, writev, send, sendto和sendmsg共5个函数, 对于一个TCP套接字,内核将从应用程序的缓冲区到该套接字的发送缓冲区复制数据。对于阻塞的套接字, 如果其发送缓冲区没有空间, 该进程将被阻塞, 直到有空间为止。
-&#160; &#160; &#160; &#160;对于非阻塞TCP套接字, 如果其发送缓冲区根本没有空间, 输出函数调用将立即返回一个EWOULDBLOCK错误, 如果其发送缓冲区有一些空间, 返回值将是内核能够㢟到该缓冲区中的字节数, 这个字节数也成为不足计数。
-&#160; &#160; &#160; &#160;UDP套接字不存在真正的发送缓冲区, 内核只是复制应用程序进程数据,并把它沿协议栈向下传递, 渐次冠以UDP首部和IP首部, 因此对于一个阻塞的UDP套接字, 输出函数将不会因为与TCP套接字一样的原因而阻塞, 不顾有可能因为其他的原因阻塞。
+&#160; &#160; &#160; &#160;对于非阻塞TCP套接字, 如果其发送缓冲区根本没有空间, 输出函数调用将立即返回一个EWOULDBLOCK错误, 如果其发送缓冲区有一些空间, 返回值将是内核能够㢟到该缓冲区中的字节数, 这个字节数也成为不足计数。UDP套接字不存在真正的发送缓冲区, 内核只是复制应用程序进程数据,并把它沿协议栈向下传递, 渐次冠以UDP首部和IP首部, 因此对于一个阻塞的UDP套接字, 输出函数将不会因为与TCP套接字一样的原因而阻塞, 不顾有可能因为其他的原因阻塞。
 3. 接受外来连接(服务器端), 即accept函数, 如果对一个阻塞的套接字调用accept函数, 并且尚无新的连接到达, 该线程将阻塞。
 &#160; &#160; &#160; &#160;如果对一个非阻塞的套接字调用accpet函数, 并且尚无新的连接到大, accept将立即返回一个AWOULDBLOCK错误。
 4. 发起外来连接(客户端), 即调用TCP的connect函数。(connect同样可用于UDP, 不过它不能使一个真正的连接建立起来, 它只是是内核保存对端的IP和端口号)。TCP连接的建立涉及一个三次握手过程, 而且connect函数一直要等到客户端收到对于自己的SYN的ACK为止才返回。 这意味着TCP的每一个connect总会阻塞其调用进程至少一个到服务器的RTT时间。
@@ -268,7 +268,7 @@ Java_sun_nio_ch_Net_socket0(JNIEnv *env, jclass cl, jboolean preferIPv6,
                             jboolean stream, jboolean reuse)
 {
     int fd;
-     //通信协议, 默认都是SOCK_STREAM
+     //通信协议, 默认都是SOCK_STREAM, 代表是TCP协议, 而SOCK_DGRAM表示UDP协议
     int type = (stream ? SOCK_STREAM : SOCK_DGRAM);
 #ifdef AF_INET6
     int domain = (ipv6_available() && preferIPv6) ? AF_INET6 : AF_INET; //前面是ipv6, 后面代表ipv4
@@ -460,7 +460,7 @@ struct kevent {
 	void		*udata;		/* opaque user data identifier 可以携带的任意数据地址 */
 };
 ```
-可以看出这里只支持NUM_KEVENTS(windows上200个, mac上128个)个事件, 响应直接存放在AllocatedNativeObject中, 内部通过`unsafe.allocateMemory(size + ps)`方式直接分配内存及管理, 然后通过initStructSizes对AllocatedNativeObject内存块尽心管理, 比如要获取监听的第i个事件的文件描述符:
+可以看出这里只支持NUM_KEVENTS(windows上200个, mac上128个)感兴趣的事件, 感兴趣的事件将存放在AllocatedNativeObject中, 内部通过`unsafe.allocateMemory(size + ps)`方式直接分配内存及管理, 然后通过initStructSizes对AllocatedNativeObject内存块尽心管理, 比如要获取监听的第i个事件的文件描述符:
 ```
     int getDescriptor(int index) {
         int offset = SIZEOF_KEVENT*index + FD_OFFSET;
@@ -476,7 +476,7 @@ struct kevent {
         }
     }
 ```
-首先获取AllocatedNativeObject Array中第index个事件的相对位置, 然后再通过调用keventArray.getInt(offset)本地函数直接获取该内存地址的值。
+首先获取AllocatedNativeObject Array中第index个赶兴趣的响应地址, 然后再通过调用keventArray.getInt(offset)本地函数直接获取该内存地址的值。
 我们也需要知道`kq = init();`, 它作为IO复用, java与linux关联起来的核心fd, 该函数会去调用底层`int kq = kqueue()`, 我们先对多路复用进行一个简单的描述吧:
 `kueue是在UNIX上比较高效的IO复用技术。所谓的IO复用，就是同时等待多个文件描述符就绪，以系统调用的形式提供。如果所有文件描述符都没有就绪的话，该系统调用阻塞，否则调用返回，允许用户进行后续的操作。常见的IO复用技术有select, poll, epoll以及kqueue等等。其中epoll为Linux独占，而kqueue则在许多UNIX系统上存在，包括OS X（好吧，现在叫macOS了。。）`(<a href="https://www.cppentry.com/bencandy.php?fid=104&id=138645">参考</a>)
 简单来说, 我们可以向kqueue注册多个感兴趣的事件, 比如读写。然后调用kevent()等待, 当输入流/输出流就绪时, 就会返回。 这里我们还要理解的地点就是, 只要一次注册, kqueue()每次返回时, 都对检查之前注册的事件。 除非使用如下命令显示取消对事件的继续关注:
@@ -484,6 +484,7 @@ struct kevent {
     EV_SET(&changes[1], fd, EVFILT_WRITE, EV_DELETE, 0, 0, 0);
 
 ```
+若对这些参数感兴趣, 可以参考《UNIX网络编程1: 套接字联网API》第14章的高级轮询技术
 
 +  fd0和fd1
 我们接下来看下属性fd0和fd1, 调用`IOUtil.makePipe(false);`产生, 实际调用了linux pipe()来完成的。
@@ -582,8 +583,7 @@ Java_sun_nio_ch_KQueueArrayWrapper_interrupt(JNIEnv *env, jclass cls, jint fd)
 register函数主要做了如下事情:
 1. 首先检测ServerSocketChannelImpl并没有被关闭。
 2. 检查ServerSocketChannelImpl是非阻塞的。
-3. 检查目前是否该管道是否在selector上面已经注册了, 若注册了, 那么修改关注的事件。否则就调用register去KQueueSelectorImpl中注册这个事件。
-这里可能有个疑问, 假如我们向kqueue()的套接字注册了OP_READ事件, 这里再次向其注册OP_WRITE事件, 那么此时对同一个管道向Selector注册了两个事件。而这里注册OP_WRITE时调用findKey找到了第一次注册的SelectionKey, 然后再覆盖感兴趣的事件, 不就把OP_READ注册信息给覆盖了吗? 答案是真的覆盖了, 并且在向kqueue注册第二个事件时会将第一个事件给取消了。先晒一段代码:
+这里可能有个疑问, 假如我们向kqueue()的套接字注册了OP_READ事件, 这里再次向其注册OP_WRITE事件, 那么此时对同一个管道向Selector注册了两个事件。而这里注册OP_WRITE时调用findKey找到了第一次注册的SelectionKey, 然后再覆盖感兴趣的事件, 不就把OP_READ注册信息给覆盖了吗? 答案是真的覆盖了, 并且在向kqueue注册第二个事件时会将第一个事件给取消了。先晒一段selector.select()里面的代码:
 ```
 // 可以看到var2.events与Net.POLLIN和Net.POLLOUT相与, write或者read只能有一个为1。
 this.register0(this.kq, var3.getFDVal(), var2.events & Net.POLLIN, var2.events & Net.POLLOUT);
@@ -596,15 +596,309 @@ Java_sun_nio_ch_KQueueArrayWrapper_register0(JNIEnv *env, jobject this,
     struct kevent changes[2];
     struct kevent errors[2];
     struct timespec dontBlock = {0, 0};
-    // 注册监听事件， 这里可以看出，要么只能是读，要么只能是写，只能选择一样。选择一样，那么另外一样只能取消关注。
+    // 注册监听事件， 这里可以看出，要么只能是读，要么只能是写，只能选择一样。选择其中一样，那么另外一样只能取消关注。
     // if (r) then { register for read } else { unregister for read }
     // if (w) then { register for write } else { unregister for write }
     // Ignore errors - they're probably complaints about deleting non-
     //   added filters - but provide an error array anyway because
     //   kqueue behaves erratically if some of its registrations fail.
-    // read或者write事件只能选择一个, 注册了一个, 那么另外一个将被取消。
     EV_SET(&changes[0], fd, EVFILT_READ,  r ? EV_ADD : EV_DELETE, 0, 0, 0);
     EV_SET(&changes[1], fd, EVFILT_WRITE, w ? EV_ADD : EV_DELETE, 0, 0, 0);
     kevent(kq, changes, 2, errors, 2, &dontBlock);
 }
 ```
+之后也会在selector.select()介绍。
+&#160; &#160; &#160; &#160;我们还是看下向KQueueSelectorImpl.register()做了哪些事情吧
+```
+    protected final SelectionKey SelectorImpl.register(AbstractSelectableChannel ch, int ops, Object attachment) {
+        // 产生一个SelectionKeyImpl, 存放当前管道ServerSocketChannelImp和KQueueSelectorImpl
+        SelectionKeyImpl k = new SelectionKeyImpl((SelChImpl)ch, this);
+        k.attach(attachment);
+        synchronized (publicKeys) {
+            implRegister(k);
+        }
+        // 注册感兴趣的事, 会将ServerSocketChannelImpl及感兴趣的事注册到KQueueArrayWrapper.updateList, 会将对ServerSocketChannelImpl的OP_ACCEPT事件转变为了OP_READ
+        k.interestOps(ops);
+        return k;
+    }
+    protected void implRegister(SelectionKeyImpl ski) {
+        if (closed)
+            throw new ClosedSelectorException();
+        int fd = IOUtil.fdVal(ski.channel.getFD());
+        // 向fdMap中保存管道对应的fd及SelectionKeyImpl对应关系
+        fdMap.put(Integer.valueOf(fd), new MapEntry(ski));
+        totalChannels++;
+        keys.add(ski);
+    }
+```
+&#160; &#160; &#160; &#160;可以看到, 主要是向KQueueSelectorImpl注册了此次的SelectionKeyImpl。这里也是可以看到, 对于一个管道(ServerSocketChannelImp或者SocketChannelImp), 只能在KQueueSelectorImpl注册一个事件。3. 检查目前是否该管道是否在selector上面已经注册了, 若注册了, 那么修改关注的事件。否则就调用register去KQueueSelectorImpl中注册这个事件。这里还有一个细节需要注意下, 在k.interestOps中, kevent只有read/write等几种事件类型, 并没有Accept事件, 所以会将ACCEPT事件转变为READ事件。
+
+## select
+然后就开始真正向kqueue注册感兴趣的事件了:
+```
+    protected int KQueueSelectorImpl.doSelect(long timeout) throws IOException {
+        int entries = 0;
+        //首先将那些取消的key从keys数组中去掉
+        processDeregisterQueue();
+        try {
+            begin();
+            entries = kqueueWrapper.poll(timeout);
+        } finally {
+            end();
+        }
+        processDeregisterQueue();
+        return updateSelectedKeys(entries);
+    }
+    // timeout是从selector.select()这里传递过来的，默认为-1，代表永久阻塞
+    int poll(long timeout) {
+        updateRegistrations();
+        int updated = kevent0(kq, keventArrayAddress, NUM_KEVENTS, timeout);
+        // 有时间变化的个数
+        return updated;
+    }
+```
+这里主要做了两件事情:
+1. 调用begin()向当前线程的的blocker赋值interruptor, 以便当调用kqueue()被阻塞时, 被别的线程唤醒。
+2. 调用updateRegistrations向从KQueueArrayWrapper.updateList中获取新的感兴趣的事并注册
+3. 然后调用kevent0()阻塞等待感兴趣的事情发生。
+4. 当从kqueueWrapper.poll返回后, 就不再需要被唤醒了, 则调用end()清空该线程的blocker属性。
+5. 然后通过updateSelectedKeys去一一识别感兴趣的事件到底是那几个管道的, 以便后续根据不同的响应做出不动的动作。
+&#160; &#160; &#160; &#160;我们首先看下如何调用begin()实现了可以被别的线程唤醒的功能:
+```
+    protected final void begin() {
+        if (interruptor == null) {
+            interruptor = new Interruptible() {
+                    public void interrupt(Thread ignore) {
+                        AbstractSelector.this.wakeup();
+                    }};
+        }
+        // 对线程blocker属性进行赋值
+        AbstractInterruptibleChannel.blockedOn(interruptor);
+        Thread me = Thread.currentThread();
+        if (me.isInterrupted()) // 检测是否有中断信号
+            interruptor.interrupt(me);
+    }
+```
+&#160; &#160; &#160; &#160;可以看到, 底层还是通过selector.wakeup()实现唤醒功能(前面已经介绍了)。同时调用AbstractInterruptibleChannel.blockedOn初始化blocker。初始化这个对象有什么用呢? 我们首先需要明白别的线程调用thread.interrupt()做了哪些事情。
+```
+    public void interrupt() {
+        if (this != Thread.currentThread())            checkAccess();
+
+        synchronized (blockerLock) {
+            Interruptible b = blocker;
+            if (b != null) {
+                interrupt0();           // Just to set the interrupt flag
+                b.interrupt(this);
+                return;
+            }
+        }
+        interrupt0();
+    }
+```
+&#160; &#160; &#160; &#160;这些是不是很明白了, 若当前线程被阻塞了, 别的线程调用thread.interrupt()后, 会去检查线程的blocker, 若不为空, 就会调用blocker.interrupt(this), 我们这里会调用selector.wakeup()实现了将线程从kevent0()唤醒的功能。这里顺便多提一句, interrupt0底层是通过Parker.unpark()唤醒的线程<a href="https://kkewwei.github.io/elasticsearch_learning/2018/11/10/LockSupport%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/#Parker-unpark">参考</a>
+&#160; &#160; &#160; &#160;我们再继续看下updateRegistrations()是如何向kqueue注册感兴趣的事件的。
+```
+    void updateRegistrations() {
+        LinkedList var1 = this.updateList;
+        synchronized(this.updateList) {
+            KQueueArrayWrapper.Update var2 = null;
+
+            while((var2 = (KQueueArrayWrapper.Update)this.updateList.poll()) != null) {
+                SelChImpl var3 = var2.channel;
+                if(var3.isOpen()) {
+                    // read和write只能选择一个。
+                    this.register0(this.kq, var3.getFDVal(), var2.events & Net.POLLIN, var2.events & Net.POLLOUT);
+                }
+            }
+
+        }
+    }
+```
+可以看到, 这里会取出updateList中所有的事件, 然后通过调用this.register0来进行注册, 之前也进行了讲解, register0具有排他性, 只能在对某个端口注册对或者写的事件。
+&#160; &#160; &#160; &#160;我们再看kqueue0到底做了哪些事情:
+```
+JNIEXPORT jint JNICALL
+Java_sun_nio_ch_KQueueArrayWrapper_kevent0(JNIEnv *env, jobject this, jint kq,
+                                           jlong kevAddr, jint kevCount, //就绪的kevent
+                                           jlong timeout) {
+    struct kevent *kevs = (struct kevent *)jlong_to_ptr(kevAddr);
+    struct timespec ts;
+    struct timespec *tsp;
+    int result;
+    // Java timeout is in milliseconds. Convert to struct timespec.
+    // Java timeout == -1 : wait forever : timespec timeout of NULL 永久阻塞
+    // Java timeout == 0  : return immediately : timespec timeout of zero  立刻返回
+    if (timeout >= 0) {
+        ts.tv_sec = timeout / 1000;
+        ts.tv_nsec = (timeout % 1000) * 1000000; //nanosec = 1 million millisec
+        tsp = &ts;
+    } else {
+        tsp = NULL;
+    }
+    //kevs： kevent函数用于返回已经就绪的事件列表
+    result = kevent(kq, NULL, 0, kevs, kevCount, tsp);
+    if (result < 0) {
+        if (errno == EINTR) {
+            // ignore EINTR, pretend nothing was selected
+            result = 0;
+        } else {
+            JNU_ThrowIOExceptionWithLastError(env, "KQueueArrayWrapper: kqueue failed");
+        }
+    }
+    return result;
+}
+```
+可以看到两点重要信息:
+1. java传递感兴趣的直接内存地址kevAddr, 然后kqueue0本地函数, kevent *kevs = (struct kevent *)jlong_to_ptr(kevAddr)来控制感兴趣的地址。
+2. 本地函数调用kevent, 检查是否有感兴趣的事件发生。若至少有一个感兴趣的事件发生, 事件本身放在kevs中, result返回的是发生的事件个数。
+&#160; &#160; &#160; &#160; 最后我们看下updateSelectedKeys是如何对响应事件是属于哪个管道的。
+```
+    private int updateSelectedKeys(int entries)
+        throws IOException
+    {
+        int numKeysUpdated = 0;
+        boolean interrupted = false;
+        // A file descriptor may be registered with kqueue with more than one
+        // filter and so there may be more than one event for a fd. The update
+        // count in the MapEntry tracks when the fd was last updated and this
+        // ensures that the ready ops are updated rather than replaced by a
+        // second or subsequent event.
+        updateCount++;
+        for (int i = 0; i < entries; i++) {
+            // 获取的第i个触发时间的文件fd
+            int nextFD = kqueueWrapper.getDescriptor(i);
+            if (nextFD == fd0) {
+                interrupted = true; // 说明是被别人打断的
+            } else {
+                MapEntry me = fdMap.get(Integer.valueOf(nextFD));
+                // entry is null in the case of an interrupt
+                if (me != null) {
+                     // 获取事件类型，比如是连接，读、写？若是ready，被转变成了1
+                    int rOps = kqueueWrapper.getReventOps(i);
+                    SelectionKeyImpl ski = me.ski;
+                    if (selectedKeys.contains(ski)) { //在最外层遍历后一定要把key从selectedKeys中取掉
+                        // first time this file descriptor has been encountered on this
+                        // update?
+                        if (me.updateCount != updateCount) {
+                            if (ski.channel.translateAndSetReadyOps(rOps, ski)) {
+                                numKeysUpdated++;
+                                me.updateCount = updateCount;
+                            }
+                        } else {
+                            // ready ops have already been set on this update
+                            ski.channel.translateAndUpdateReadyOps(rOps, ski);
+                        }
+                    } else {
+                        ski.channel.translateAndSetReadyOps(rOps, ski); //
+                         // 若就绪事件和感兴趣事件是一样的，那就完成了
+                        if ((ski.nioReadyOps() & ski.nioInterestOps()) != 0) {
+                            selectedKeys.add(ski);
+                            numKeysUpdated++;
+                            me.updateCount = updateCount;
+                        }
+                    }
+                }
+            }
+        }
+        if (interrupted) {
+            // Clear the wakeup pipe
+            synchronized (interruptLock) {
+                IOUtil.drain(fd0);
+                interruptTriggered = false;
+            }
+        }
+        return numKeysUpdated;
+    }
+```
+这里会遍历所有的响应时间, 对每个事件作出如下判断, 首先根据kqueueWrapper.getDescriptor(i)获取响应时间的fd:
+1. 判断该df是否是专为唤醒设计的fd, 若是的话, 标记interrupted。
+2. 若是正常管道的fd, 那么首先调用kqueueWrapper.getReventOps(i);获取监听的类型, 1 为read, 4 为write。 然后调用translateAndSetReadyOps来转变到真正的事件类型(之前提到accept在向kqueue注册的时候, 以read 注册的, 所以这里需要将响应事件进行解析)。
+```
+    public boolean translateReadyOps(int ops, int initialOps,
+                                     SelectionKeyImpl sk) {
+        int intOps = sk.nioInterestOps(); // Do this just once, it synchronizes
+        int oldOps = sk.nioReadyOps();
+        int newOps = initialOps;
+        // POLLNVAL表示文件描述符的值是无效的。 它通常表示程序中有错误，但是如果您关闭了文件描述符，并且从那以后可能重用了描述符，则您可以依赖poll返回POLLNVAL
+        if ((ops & PollArrayWrapper.POLLNVAL) != 0) {
+            // This should only happen if this channel is pre-closed while a
+            // selection operation is in progress
+            // ## Throw an error if this channel has not been pre-closed
+            return false;
+        }
+        // 类似于来自select错误事件。 它表示read或write调用会返回错误状态（例如I / O错误）。 这不包括通过其errorfds掩码select信号但是通过POLLPRI poll信号的带外数据。
+        if ((ops & (PollArrayWrapper.POLLERR
+                    // 基本上意味着连接的另一端已经关闭了连接的结束。 POSIX将其描述为该设备已断开连接。 这个事件POLLOUT是互斥的。 如果发生挂断，则流永远不可写入。
+                    || PollArrayWrapper.POLLHUP)) != 0) {
+            newOps = intOps;
+            sk.nioReadyOps(newOps);
+            return (newOps & ~oldOps) != 0;
+        }
+        // 这里判断是否是OP_ACCEPT事件, 若是的话, 还需要将read解析成accept事件
+        if (((ops & PollArrayWrapper.POLLIN) != 0) &&
+            ((intOps & SelectionKey.OP_ACCEPT) != 0))
+                newOps |= SelectionKey.OP_ACCEPT;
+
+        sk.nioReadyOps(newOps);
+        return (newOps & ~oldOps) != 0;
+```
+可以看到这里有将部分POLLIN事件解析成了SelectionKey.OP_ACCEPT。
+
+# accept
+我们已经从kevent0()阻塞中返回了, 那么代表是否响应发生, 解析后的响应事件都放在了SelectorImpl.selectedKeys中。 当我们判断是个请求连接的响应事件时, 我们就会调用ServerSocketChannel.accept()以便和这个请求建立连接。连接操作会做如下事情:
+```
+    public SocketChannel accept() throws IOException {
+        synchronized (lock) {
+            //检查ServerSocketChannelImpl处于open状态
+            if (!isOpen())
+                throw new ClosedChannelException();
+            //
+            if (!isBound())
+                throw new NotYetBoundException();
+            SocketChannel sc = null;
+            int n = 0;
+            FileDescriptor newfd = new FileDescriptor();
+            InetSocketAddress[] isaa = new InetSocketAddress[1];
+            try {
+                begin();
+                if (!isOpen())
+                    return null;
+                thread = NativeThread.current();
+                for (;;) {
+                    n = accept0(this.fd, newfd, isaa); // 成功了就会返回1
+                    if ((n == IOStatus.INTERRUPTED) && isOpen())
+                        continue;
+                    break;
+                }
+            } finally {
+                thread = 0;
+                end(n > 0);
+                assert IOStatus.check(n);
+            }
+            if (n < 1)  //有问题，失败了
+                return null;
+            IOUtil.configureBlocking(newfd, true); // 设置非阻塞
+            InetSocketAddress isa = isaa[0];  // 存放的对方主机的地址
+            sc = new SocketChannelImpl(provider(), newfd, isa);
+            SecurityManager sm = System.getSecurityManager();
+            if (sm != null) {
+                try {
+                    sm.checkAccept(isa.getAddress().getHostAddress(),
+                                   isa.getPort());
+                } catch (SecurityException x) {
+                    sc.close();
+                    throw x;
+                }
+            }
+            return sc;
+        }
+    }
+```
+accept操作做了如下事情:
+1. 调用begin()以便支持当调用accept0时被阻塞时, 可以被别的线程唤醒。
+2. 循环调用accept0, 直到成功获取和client建立连接的套接字。成功返回的标志就是n=1。
+3. 调用IOUtil.configureBlocking(newfd, true)将该套接字设置成默认true。
+4. 建立SocketChannelImpl对象, 并绑定和client保持连接的套接字newfd。
+
+# 总结
+JAVA NIO底层函数实现基本都是靠网络套接字实现的, 服务器端建立连接主要分为以下几个步骤: 建立ServersocketChannel, 绑定端口, 建立Selector, 注册感兴趣的事件, 开始监听端口, 调用select()等待建立连接的响应事件, 和client建立连接。
