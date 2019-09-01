@@ -3,6 +3,7 @@ title: Flink原理-Akka通信&TaskManager注册
 date: 2019-04-20 23:16:59
 tags:
 toc: true
+categories: Flink
 ---
 Flink对于JobManager和TaskManager之间通信采用Akka remote实现, 本文将以tm和jm之间的一次远程通信为示例进行讲解。为了读者更好地理解, 本文首先介绍AKKa相关基本知识。
 # Akka基础学习

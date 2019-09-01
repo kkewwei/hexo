@@ -3,6 +3,7 @@ title: Java NIO Write过程分析
 date: 2017-04-10 23:35:58
 tags: NIO, write, read
 toc: true
+categories: Java NIO及网络通信
 ---
 在<a href="https://kkewwei.github.io/elasticsearch_learning/2017/04/10/JAVA-NIO%E5%8E%9F%E7%90%861/#JAVA-NIO%E7%9A%84%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8">JAVA NIO通信分析</a>中, 说明了客户端与服务器端是如何建立连接的, 那么本文将在上文的基础上, 了解服务器端是如何根据建立的连接进行写和读的。由于读写流程基本一致, 这里只分析如何进行写入的。
 # write
@@ -192,7 +193,7 @@ Java_sun_nio_ch_FileDispatcherImpl_preClose0(JNIEnv *env, jclass clazz, jobject 
 ```
 &#160; &#160; &#160; &#160;我们可以看到在init函数中使用socketpair产生了一对套接字, 它比较好玩, 我们知道, <a href="https://kkewwei.github.io/elasticsearch_learning/2017/04/10/JAVA-NIO%E5%8E%9F%E7%90%861/#%E4%BA%A7%E7%94%9FSelector">pipe()</a>也产生了一对套接字, 一边可以写, 另一边可以读,属于半双工的, 而通过socketpair产生的2个套接字都属于全双工, 也就是说任何一个套接字既可以读, 也可以写。那么每个SocketChannaleImp产生这样的套接字有什么用呢? 而且还在初始化时候的close一个套接字? 这就得从tcp断开连接说起了, 由于fd被作用于多线程环下, 我们不知道管道在什么时候被某个线程调用close了, 但是假如还有别的线程也正在进行read或者write(), 那么很可能就读取或者写入的是个不完整的数据。所以就引入了半关闭套接字。半关闭指的是关闭一对套双工套接字的其中一个, 然后我们对另外一个套接字进行读写的话, 那么会返回如下异常:`Program received signal SIGPIPE, Broken pipe`。
 &#160; &#160; &#160; &#160;我们再继续看preClose0函数, 调用dup2函数。 要了解dup2函数的意思, 我们需要套接字在linux内核的数据结构, 每个进程会在运行期间打开一些文件, 文件描述符可以在/proc/pid/fd中可以看到映射关系。
-<img src="https://kkewwei.github.io/elasticsearch_learning/img/fd.png" height="400" width="450"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/fd.png" height="300" width="350"/>
 fd控制文件的写入实际是通过文件表项来实现的, 而int dup2(int oldfd, int newfd)的作用是产生一个文件描述符, 同时指向oldfd指向的文件表项, 若newfd已经打开, 则先将其关闭。 这样我们通过oldfd操作文件, 则也会反馈到newfd上, 类似软连的作用。了解了这些, 我们再来看这个函数就简单了。fd会首先关闭原来的链接, 同时指向一个已经关闭的连接上, 若别的线程在对这个套接字进行读写的时候, 会立马得到Broken pipe的异常, 而不是读取或写入一个错误的文件。
 &#160; &#160; &#160; &#160;我们再来看第二点:当前线程是如何通过NativeThread.signal()唤醒读写线程的, 那我们不得不查看NativeThread的本地实现了:
 ```

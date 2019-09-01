@@ -3,6 +3,7 @@ title: CopyOnWriteArrayList原理分析
 date: 2017-09-17 10:14:15
 tags:
 toc: true
+categories: Java学习
 ---
 CopyOnWriteArrayList是为了解决并发场景下对ArrayList读写的, 可以根据名称大致可知如何使用: 当写入的时候的对ArrayList进行copy。使用场景: 读多写少。
 ## 成员变量

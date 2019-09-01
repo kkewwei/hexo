@@ -3,6 +3,7 @@ title: maven插件学习
 date: 2017-04-05 13:32:36
 tags: maven, 插件, 打包
 toc: true
+categories: 工具学习
 ---
 maven有三个生命周期:clean, default, site。 clean主要的目的是为了清理上次构建产生的文件, default主要是为了构建项目, site主要了为了搭建和发布项目web站点, 比如项目信心, 以便团队之间更好地交流。我们一般主要关注default声明周期, 这里会大致介绍下常用的phase:
 

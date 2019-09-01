@@ -3,6 +3,7 @@ title: NioEventLoop篇
 date: 2018-01-22 08:53:40
 tags: NioEventLoop
 toc: true
+categories: Netty
 ---
 # 介绍
 在ServerBootstrap初始篇初始篇中说过, 每个NioEventLoop里面, 都拥有属性thread, 用来执行对应channel产生的所有task, 该thread最早在register的时候被生成, 首先调用如下代码:

@@ -6,6 +6,7 @@ tags:
 - 随笔
 - gdb
 toc: true
+categories: 工具学习
 
 ---
 jvm进程崩溃时, 可以产生coredump文件, 该dump文件记录了崩溃时cpu、jvm当前线程、当前内存的使用情况, 学会分析该coredump对于我们排查问题十分重要, 本文将主要讲解如何通过gdb分析该coredump文件。

@@ -3,6 +3,7 @@ title: Netty对象回收池Recycler原理详解
 date: 2019-01-16 09:09:39
 tags: Cycler
 toc: true
+categories: Netty
 ---
 同Netty内存池(可参考<a href="https://kkewwei.github.io/elasticsearch_learning/2018/05/23/Netty%E5%86%85%E5%AD%98%E5%AD%A6%E4%B9%A0/">Netty PoolArea原理探究</a>)一样, 为了增强Netty高性能并发能力, 减少通用对象分配的损耗, 也采用了对象池的概念。 当需要某个对象时, 首先从对象池中获取该对象, 当使用完成后, 将对象释放到对象池中, 这样达到重复使用对象的效果。基本使用如下:
 ```

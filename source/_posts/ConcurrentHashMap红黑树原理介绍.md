@@ -3,6 +3,7 @@ title: ConcurrentHashMap红黑树原理介绍
 date: 2017-11-06 17:48:34
 tags:
 toc: true
+categories: Java学习
 ---
 为了加快ConcurrentHashMap查找数据的速度, 若链表长度过长, 会将链表转化为红黑树, 本文主要讲解相关知识。
 # 红黑树介绍

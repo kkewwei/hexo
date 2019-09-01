@@ -3,6 +3,7 @@ title: jvm内存泄露排查工具
 date: 2016-12-15 21:12:10
 tags: perftools、jcmd、pmap
 toc: true
+categories: 工具学习
 ---
 本文介绍几个不常用的内存泄露排查工具:perftools、pmap、jcmd。
 

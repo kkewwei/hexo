@@ -3,6 +3,7 @@ title: Flink原理-JobManager端的SubTask申请slot及部署
 date: 2019-03-12 20:04:11
 tags: Flink、Slot分配、SubTask申请slot, SubTask部署
 toc: true
+categories: Flink
 ---
 本文将从ExecutionGraph开始向后讲起, ExecutionGraph定义了Job的并发逻辑结构, 作为任务执行的以后一层逻辑结构, 也是最核心数据结构。为了让大家有全局的了解, 先盗一张广为引用的Graph转换图:
 <img src="https://kkewwei.github.io/elasticsearch_learning/img/Flink_Graph.png" height="900" width="800"/>

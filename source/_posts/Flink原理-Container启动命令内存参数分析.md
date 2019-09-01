@@ -3,6 +3,7 @@ title: Flink原理-Container启动命令内存参数分析
 date: 2019-06-08 19:22:29
 tags:
 toc: true
+categories: Flink
 ---
 如下是flink on yarn启动的一个示例:
 ```.

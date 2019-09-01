@@ -2,6 +2,7 @@
 title: Netty Http通信源码一(解码)分析
 date: 2018-04-16 00:06:17
 tags:
+categories: Netty
 ---
 首先给出一个http server pipiLine里面的处理器的组成结构的示例:
 ```

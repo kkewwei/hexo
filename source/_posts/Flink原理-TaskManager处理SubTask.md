@@ -3,6 +3,7 @@ title: Flink原理-TaskManager处理SubTask
 date: 2019-04-03 12:10:04
 tags:
 toc: true
+categories: Flink
 ---
 在了解TaskManager处理task之前, 我们先看下该JVM启动过程。 TaskManager端yarn启动的类为YarnTaskExecutorRunner, TM端存放当前可利用的slot信息存放在TaskManagerServices.taskSlotTable里面, slot默认资源为new ResourceProfile(cpu=1.0, men=42)。
 在<a href="https://kkewwei.github.io/elasticsearch_learning/2019/03/12/Flink%E5%8E%9F%E7%90%86-slot%E5%88%86%E9%85%8D/#%E9%83%A8%E7%BD%B2subTask%E5%88%B0%E5%AF%B9%E5%BA%94%E7%9A%84slot">Flink原理-Slot申请及SubTask部署</a>中, 我们知道, subTask会在JobManager中通过TaskManagerGateway.submitTask(deployment, rpcTimeout)进行部署subTask。TaskManager会通过TaskExecutor.subTask()接收到该部署请求。

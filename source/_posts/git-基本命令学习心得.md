@@ -3,6 +3,7 @@ title: git 基本命令学习心得-1
 date: 2017-03-08 12:46:57
 tags: git, rebase, cherry-pick, reset, checkout
 toc: true
+categories: 工具学习
 ---
 一般在公共分支上操作,不能修改分支的提交记录, 但是可以使用cherry-pick, revert这样的可以使用, 而rebase, reset这样的命令一般在私有分支上才可用。
 # rebase

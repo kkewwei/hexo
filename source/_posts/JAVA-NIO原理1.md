@@ -3,6 +3,7 @@ title: JAVA NIO通信分析
 date: 2017-04-10 10:54:35
 tags: NIO
 toc: true
+categories: Java NIO及网络通信
 ---
 JAVA NIO作为Java网络通信模块最基本的单元, 而在实践中, 我们都会接触到网络通信, 搞懂JAVA NIO, 对我们排查问题起到事半功倍的效果。 本文将带你进入JAVA NIO函数及底层本地函数的世界。
 # JAVA NIO的基本使用

@@ -3,6 +3,7 @@ title: Netty PoolThreadCache原理探究
 date: 2018-07-14 19:04:06
 tags:
 toc: true
+categories: Netty
 ---
 NioEventLoop在为数据分配存放的内存时, 会首先尝试从线程本地缓存中去申请, 只有当本地缓存中申请失败, 才会考虑从全局内存中申请, 本地缓存的管理者就是PoolThreadCache对象。 Netty自己实现了类似LocalThread的类来充当线程缓存: PoolThreadLocalCache, 本节将充分围绕这两个类的源代码进行描述。
 # PoolThreadCache

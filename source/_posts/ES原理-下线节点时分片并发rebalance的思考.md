@@ -3,6 +3,7 @@ title: ES原理-下线节点时分片并发rebalance的思考
 date: 2019-06-16 22:29:49
 tags:
 toc: true
+categories: Elasticsearch
 ---
 # 现象
 最近在下线ES5.6.8集群节点时候, 发现了一个很奇怪的现象, 我先把cluster参数给贴出来看下:
