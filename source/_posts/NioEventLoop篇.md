@@ -265,7 +265,7 @@ protected void wakeup(boolean inEventLoop) { //inEventLoop说的是NioEventLoop�
 + 上一轮的oldWakenUp仍然置为着, 说明因为上一轮走完, selector仍然处于唤醒状态, 需要这个唤醒作用清空。
 + 此轮有task处于penging.
 + 有schedule task截止时间已经到了。
-select(boolean oldWakenUp)主要判断逻辑基本已经完成了, 为啥后面还有那么多代码? 主要是为了解决可能触发epool cpu100%的bug。这个bug的意思是selector.select(timeoutMillis)并不会超时阻塞timeoutMillis, 它会立刻返回。
+select(boolean oldWakenUp)主要判断逻辑基本已经完成了, 为啥后面还有那么多代码? 主要是为了解决可能触发epool cpu100%的bug。这个bug的意思是selector.select(timeoutMillis)并不会超时阻塞timeoutMillis, 就算此时没有任何关注的事件发生, 它会立刻返回。
 这样的话, 这个函数也就失去了意义, 如果不加控制的话, 这里的for循环会无限制下去而没有意义。 解决的方法就是selector, 具体处理函数rebuildSelector0如下:
 ```
 ivate void rebuildSelector0() {
