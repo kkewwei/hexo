@@ -1,11 +1,11 @@
 ---
-title: Lucenec底层架构-fdt/fdx构建过程
-date: 2019-12-22 07:47:47
+title: Lucene8.2.0底层架构-fdt/fdx构建过程
+date: 2019-10-29 07:47:47
 tags: Lucene、StoredField
 toc: true
 categories: Lucene
 ---
-StoredField文件主要存放文档->域->value的关系, 行式存储, 不对字段分词, 便于读取任何字段的value。 fdt存放文档的value及一级索引索引, fdx存放二级索引结构。 本文就以这两个文件结构的建立->文件写入磁盘的过程来进行详细介绍, 代码主要可见CompressingStoredFieldsWriter。
+StoredField文件主要存放文档->域->value的关系, 行式存储, 正排索引结果, 不对字段分词, 便于读取任何字段的value。 fdt存放文档的value及一级索引索引, fdx存放二级索引结构。 本文就以这两个文件结构的建立->文件写入磁盘的过程来进行详细介绍, 代码主要可见CompressingStoredFieldsWriter。
 
 # 内存索引结构的建立
 索引结构建立是指将文档按照规范存储到内存中, 当对字段进行如下设置时, 才会建立该索引文档:
@@ -13,7 +13,7 @@ StoredField文件主要存放文档->域->value的关系, 行式存储, 不对�
      FieldType fieldType = new FieldType();
      fieldType.setStored(true);
 ```
-实际是在`DefaultIndexingChain.processField()`里面开始检查是否设置了该字段:
+实际是在`DefaultIndexingChain.processField()`里面开始检查字段是否设置了该参数:
 ```
     // Add stored fields:
     if (fieldType.stored()) {
@@ -26,7 +26,6 @@ StoredField文件主要存放文档->域->value的关系, 行式存储, 不对�
         try {
           // 面向行的存储，docValue是面向列的存储, field值存放在CompressingStoredFieldsWriter的bufferedDocs中
           storedFieldsConsumer.writeField(fp.fieldInfo, field);
-        } catch (Throwable th) {
         }
       }
     }
@@ -91,7 +90,7 @@ StoredField文件主要存放文档->域->value的关系, 行式存储, 不对�
 ```
 存储时使用3bit表示。
 2.向内存对象bufferedDocs存储value值, bufferedDocs使用`byte[] bytes`存储数据, 内存中的建立的索引结构如下所示:
-<img src="https://kkewwei.github.io/elasticsearch_learning/img/lucene_fdt1.png" height="180" width="850"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/lucene_fdt1.png" height="160" width="850"/>
 需要明确以下两点:
 + 所有文档相同字段名称的fieldNuber是一样的。
 + 所有doc所有域依次按先后顺序存储起来, stored=true构建的存储结构是按行存储的, 属于正排索引, 通过该索引结构很方便读取每个文档每个字段的值。
