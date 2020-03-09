@@ -1,5 +1,5 @@
 ---
-title: Lucene8.2.0底层架构-dvm/dvm构建过程
+title: Lucene8.2.0底层架构-dvd/dvm构建过程
 date: 2019-11-15 13:54:10
 tags: Lucene、DocValue
 toc: true

@@ -5,7 +5,7 @@ tags: Lucene、StoredField
 toc: true
 categories: Lucene
 ---
-StoredField文件主要存放文档->域->value的关系, 行式存储, 正排索引结果, 不对字段分词, 便于读取任何字段的value。 fdt存放文档的value及一级索引索引, fdx存放二级索引结构。 本文就以这两个文件结构的建立->文件写入磁盘的过程来进行详细介绍, 代码主要可见CompressingStoredFieldsWriter。
+StoredField文件主要存放文档->域->value的关系, 每个文档的所有域都保存一起,再保存下一行, 行式存储, 正排索引结果, 不对字段分词, 便于读取任何字段的value。 fdt存放文档的value及一级索引索引, fdx存放二级索引结构。 本文就以这两个文件结构的建立->文件写入磁盘的过程来进行详细介绍, 代码主要可见CompressingStoredFieldsWriter。
 
 # 内存索引结构的建立
 索引结构建立是指将文档按照规范存储到内存中, 当对字段进行如下设置时, 才会建立该索引文档:
@@ -31,7 +31,7 @@ StoredField文件主要存放文档->域->value的关系, 行式存储, 正排�
     }
 ```
 该函数主要做了两件事:
-1. 检查该域是否已经缓存到了内存中。详情可参考:
+1. 检查该域之前文档是否已经写入过。详情可参考:
 2. 若设置了stored=true, 那么最终进入到进入CompressingStoredFieldsWriter.writeField, 将字段的value缓存起来。
 ```
   public void writeField(FieldInfo info, IndexableField field) {
@@ -90,13 +90,13 @@ StoredField文件主要存放文档->域->value的关系, 行式存储, 正排�
 ```
 存储时使用3bit表示。
 2.向内存对象bufferedDocs存储value值, bufferedDocs使用`byte[] bytes`存储数据, 内存中的建立的索引结构如下所示:
-<img src="https://kkewwei.github.io/elasticsearch_learning/img/lucene_fdt1.png" height="160" width="850"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/lucene_fdt1.png" height="160" width="900"/>
 需要明确以下两点:
 + 所有文档相同字段名称的fieldNuber是一样的。
 + 所有doc所有域依次按先后顺序存储起来, stored=true构建的存储结构是按行存储的, 属于正排索引, 通过该索引结构很方便读取每个文档每个字段的值。
 
 # flush()/产生fdt文件
-这里flush的主要作用是将内存中的所有文档结构生成一个chunk, 并将这些结构刷新到fdt文件中, 成为一个chunk。每当完成对一个文档建立了索引后, 便会检查缓存在内存中的文档数/bufferedDocs树是否超过阈值,超过了则会触发flush。一个chunk在内存中最大占用16KB/128个文档, 参数在构建CompressingStoredFieldsFormat时给写死了, 详细代码可参考: DefaultIndexingChain.finishStoredFields(), 本节从CompressingStoredFieldsWriter.finishDocument开始介绍。
+这里flush的主要作用是将内存中的所有文档结构生成一个chunk, 并将这些结构刷新到fdt文件中, 成为一个chunk, 并不会产生一个segment。每当完成对一个文档建立了索引后, 便会检查缓存在内存中的文档数/bufferedDocs树是否超过阈值,超过了则会触发flush。一个chunk在内存中最大占用16KB/128个文档, 参数在构建CompressingStoredFieldsFormat时给写死了, 详细代码可参考: DefaultIndexingChain.finishStoredFields(), 本节从CompressingStoredFieldsWriter.finishDocument开始介绍。
 ```
   public void finishDocument() throws IOException {
      // this.numStoredFields存放的当前缓存的每个文档中设置了stred=true的域个数
@@ -161,7 +161,7 @@ StoredField文件主要存放文档->域->value的关系, 行式存储, 正排�
 3. 若内存中缓存的所有文档长度大于2*16kb, 则将bufferedDocs中的数据切分压缩存储到fdt中。
 4. 清空bufferedDocs中的数据。
 fdt文件结构如下所示:
-<img src="https://kkewwei.github.io/elasticsearch_learning/img/lucene_fdt2.png" height="160" width="500"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/lucene_fdt2.png" height="160" width="550"/>
 
 
 我们需要了解下indexWriter.writeIndex()缓存了哪些索引数据:
@@ -190,11 +190,11 @@ fdt文件结构如下所示:
 2.记录该chunk的文档数、该chunk在fdt中的起始位置。
 
 # 刷到fdx文件
-block记录的是一批chunk的索引结构, 一个fdx可以存储不止一个block, 产生一个block主要有一下两种情况:
-1.内存缓存的chunk个数超过阈值1024, 会在每次产生一个chunk的时候检查。
-2.用户主动通过indexWriter.flush()触发。
-结束一个fdx文件的写入, 有一下两种情况:
-1.lucene建立的索引结构占用内存超过阈值, 会在每次索引一个文档的时候检查。
+刷新到fdx文件，只会产生一个block, block记录的是一批chunk的索引结构, 一个fdx可以存储不止一个block, 产生一个block主要有一下两种情况:
+1.内存缓存的chunk个数超过阈值1024, 会在每次产生一个block的时候检查。
+2.用户主动通过indexWriter.flush()触发（此时一个block的chunk数小于1024）。
+结束一个fdx文件的写入（产生一个segment）, 有一下两种情况:
+1.lucene建立的索引结构占用内存或者缓存文档书超过阈值, 会在每次索引一个文档的时候检查。
 2.用户主动通过indexWriter.flush()触发。
 针对第一种情况, 每当对一个文档建立完成后, 就会检查缓存的文档数或者lucene构建索引共占用的内存是否超过阈值, 我们可以通过如下参数设置这些阈值:
 ```
