@@ -6,6 +6,7 @@ toc: true
 categories: Elasticsearch
 ---
 # 现象
+## 现象1
 最近在下线ES5.6.8集群节点时候, 发现了一个很奇怪的现象, 我先把cluster参数给贴出来看下:
 ```
 PUT _cluster/settings
@@ -38,6 +39,39 @@ PUT _cluster/settings
 }
 ```
 发现此时集群上这4个节点分别有一个分片开始进行move, what for? 按我们的理解, move操作的并发应该被我们通过参数`cluster_concurrent_rebalance`控制为1, 可是为啥为4。好像这个下线节点时候shard的并发与下线节点个数一致, 而不是受我们控制。
+## 现象2
+首先向集群发送如下命令:
+```
+PUT _cluster/settings
+{
+    "transient": {
+        "cluster": {
+         "routing": {
+            "rebalance": {
+               "enable": "all"
+            },
+            "allocation": {
+               "allow_rebalance": "always",
+               "cluster_concurrent_rebalance": "0",
+               "node_concurrent_recoveries": "0",
+               "node_initial_primaries_recoveries": "0",
+               "enable": "all"
+            }
+         }
+      }
+    }
+}
+```
+然后我通过如下命令下线4个节点:
+```
+PUT _cluster/settings
+{
+    "transient": {
+         "cluster.routing.allocation.exclude._ip": "ip1"
+    }
+}
+```
+集群突然有144个分片处于move中，按道理node_concurrent_recoveries=0后， 集群将不会再有分片move。实际原因是参数`cluster.routing.allocation.node_concurrent_incoming_recoveries`和`cluster.routing.allocation.node_concurrent_outgoing_recoveries`的初始化可以由`cluster.routing.allocation.node_concurrent_recoveries`赋值， 但是之后对`cluster.routing.allocation.node_concurrent_recoveries`的修改，将不会影响incoming和outgoing的取值， 此时这两个参数任然是50。所以就产生了`node_concurrent_recoveries=0`、集群还有较大的move.
 
 # 源码查看
 带着上面的疑问, 试图从代码中找到原因, 我们知道, 任何集群元数据变动都会跳到BalancedShardsAllocator.allocate():

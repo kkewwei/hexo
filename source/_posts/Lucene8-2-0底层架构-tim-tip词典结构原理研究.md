@@ -7,10 +7,10 @@ categories: Lucene
 ---
 Lucene中主要有两类倒排索引结构， 一种是词典结构， 涉及tim、tip、doc、pos。另外一种就是词典向量，涉及tvd,tvm（参考<a href="https://kkewwei.github.io/elasticsearch_learning/2020/03/02/Lucene8-2-0%E5%BA%95%E5%B1%82%E6%9E%B6%E6%9E%84-tvd-tvm%E8%AF%8D%E5%85%B8%E5%90%91%E9%87%8F%E7%BB%93%E6%9E%84%E7%A0%94%E7%A9%B6/">Lucene8.2.0底层架构-tvd/tvm词典向量结构研究</a>）, 这者统计的信息大体相同，这两个类都继承自`TermsHashPerField`，都是对segment内相同域名所有文档共享这两个类。 
 前者由`FreqProxTermsWriterPerField`构建, 后者由`TermVectorsConsumerPerField`构建。两者之间结构相似，先放一张图让大家对该对象有个大致的印象：
-<img src="https://kkewwei.github.io/elasticsearch_learning/img/lucene_tim1.png" height="600" width="500"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/lucene_tim1.png" height="500" width="400"/>
 可以看到，将两者连接起来的是bytePool（结构可参考<a href="https://kkewwei.github.io/elasticsearch_learning/2019/10/06/Lucene8-2-0%E5%BA%95%E5%B1%82%E6%9E%B6%E6%9E%84-ByteBlockPool%E7%BB%93%E6%9E%84%E5%88%86%E6%9E%90/">Lucene8.2.0底层架构-ByteBlockPool结构分析</a>）,该对象就是存放的term内容，在词典和termVector构建之间共享以节约内存使用，不过前者产生的termId是segment该域级别唯一的，而后者是文档级别该域唯一。
 Lucene查询中使用最多的就是词典结构, 根据term查询在哪些文档中存在, 也被称为倒排索引， 倒排索引结构如下:
-<img src="https://kkewwei.github.io/elasticsearch_learning/img/lucene_tim2.png" height="500" width="500"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/lucene_tim2.png" height=350" width="350"/>
 由图可知，只要知道term，我们就可以很好地知道该term在每个document每个域的词频，位置，offset等信息，本文就以词典构建过程来进行深入研究。
 # 词典在内存中构建
 在对字典字段设置时, 可以进行如下设置:
@@ -280,7 +280,7 @@ Lucene查询中使用最多的就是词典结构, 根据term查询在哪些文�
 2.将词position&offset保存到第二个slice中。
 
 最终建立的逻辑结构如下所示：
-<img src="https://kkewwei.github.io/elasticsearch_learning/img/lucene_tim3.png" height="500" width="500"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/lucene_tim3.png" height="400" width="400"/>
 freqProxPostingsArray里面数组下标就是termId, 如何展示的是termId=1的term 倒排索引存放情况。
 
 # flush到文件中
@@ -309,7 +309,7 @@ flush到文件中指的是形成一个segment，触发条件有两点（同<a hr
         if (term == null) {
           break;
         }
-        // 将该term加入词典。
+        // 将该term加入词典及建立字典索引结构。
         termsWriter.write(term, termsEnum, norms); 
       }
       termsWriter.finish();// 完成field 的构建。每个单词一个finish
@@ -317,13 +317,13 @@ flush到文件中指的是形成一个segment，触发条件有两点（同<a hr
   }
 ```
 该函数主要是遍历该segment中每个域里所有的词， 然后调用`termsWriter.write`建立词典结构：
-```angular2html
+```
     public void write(BytesRef text, TermsEnum termsEnum, NormsProducer norms) throws IOException {
-      // 将term的存入文档，跳表放入内存，产生doc文件
+      // 将该term的倒排索引读取出来并建立索引结构
       BlockTermState state = postingsWriter.writeTerm(text, termsEnum, docsSeen, norms); // 针对的是一个词
       if (state != null) {
-        pushTerm(text); // 需要进来
-        // 函数判断pending是否满足构建索引的条件，并将当前term加入pending末尾
+        // 将当前词加入词典中
+        pushTerm(text); 
         PendingTerm term = new PendingTerm(text, state); 
         pending.add(term);//当前term加入待索引列表
         sumDocFreq += state.docFreq; // 该词在多少文档中出现过
@@ -336,3 +336,174 @@ flush到文件中指的是形成一个segment，触发条件有两点（同<a hr
       }
     }
 ```
+该函数主要做了如下事情：
+1.调用`postingsWriter.writeTerm()`，将该term的倒排索引结构放入doc文件中。
+2.调用`pushTerm()`将该词加入词典中。
+
+## 单个词的倒排索引结构落盘
+我们看下term的倒排索引结构如何放入doc文件中的，进入`PushPostingsWriterBase.writeTerm()`：
+```
+  @Override
+  public final BlockTermState writeTerm(BytesRef term, TermsEnum termsEnum, FixedBitSet docsSeen, NormsProducer norms) throws IOException {
+     // 读取doc,pos等文件的起始位置
+    startTerm(normValues);
+    // 从bytePool中读取了该词的stream0,stream
+    postingsEnum = termsEnum.postings(postingsEnum, enumFlags); 
+    int docFreq = 0;
+    long totalTermFreq = 0; //该文档总的词频
+    while (true) { 
+       // 依次读取这个docID的freq
+      int docID = postingsEnum.nextDoc();
+      if (docID == PostingsEnum.NO_MORE_DOCS) {
+        break;
+      }
+      // 该词在多少个文档中出现过
+      docFreq++; 
+      docsSeen.set(docID); // 在这个文档中可见
+      int freq;
+      if (writeFreqs) {
+        // 该文档该词的词频。已经在postingsEnum.nextDoc()中给解析出来了
+        freq = postingsEnum.freq(); 
+        totalTermFreq += freq;
+      } else {
+        freq = -1;
+      } //检查读取该词的的docId，freq是否达到一个block。若达到了，则将DocId、freq压缩到doc文件中，并构建调表结构。
+      startDoc(docID, freq); 
+      if (writePositions) {
+        for(int i=0;i<freq;i++) { // 对每个词的每个position都读取出来
+          int pos = postingsEnum.nextPosition(); // 第几个position，将startOffset和endOffset都解析出来了
+          BytesRef payload = writePayloads ? postingsEnum.getPayload() : null;
+          int startOffset;
+          int endOffset;
+          if (writeOffsets) {
+            startOffset = postingsEnum.startOffset();
+            endOffset = postingsEnum.endOffset();
+          } else {
+            startOffset = -1;
+            endOffset = -1;
+          } // 检查读取的该词position是否达到block（128个），若达到就存放到pos和pay文件中
+          addPosition(pos, payload, startOffset, endOffset); // 保存增量的freq。
+        }
+      }
+      // 检查该词存储的文档个数是否达到block，写到后，更新本地保存的FilePointer，清空缓存的文档数。
+      finishDoc(); 
+    }
+    if (docFreq == 0) { // 总文档数
+      return null;
+    } else { 
+      // 给这个block赋予一些元数据
+      BlockTermState state = newTermState(); 
+      // 存在多少个文档中
+      state.docFreq = docFreq; 
+      // 该词总共出现的次数
+      state.totalTermFreq = writeFreqs ? totalTermFreq : -1; 
+      // 当前term读取完了。将跳表信息填入doc
+      finishTerm(state); 
+      return state;
+    }
+  }
+```
+该函数主要做了如下事情：
+1.遍历该term所有的docId,position、offset，通过`startDoc()`对每128个词建立跳表；通过`addPosition()`将每128个position构建一个block写入pos。
+2.遍历完了该term下所有词后， 调用`finishTerm`首先将缓存doc-freq写入doc文件， 然后将该词的跳表结构入doc文件，见缓存的position-offset写入pos文件。
+我们需要关注些如何通过`Lucene50PostingsWriter.startDoc()`构建跳表结构的：
+```
+ @Override
+  public void startDoc(int docID, int termDocFreq) throws IOException {
+    // 已经将一批docId,freq已经被压缩到了doc文件中，作为一个block。再对这个block建立跳表点。
+    if (lastBlockDocID != -1 && docBufferUpto == 0) { 
+      skipWriter.bufferSkip(lastBlockDocID, competitiveFreqNormAccumulator, docCount, 
+          lastBlockPosFP, lastBlockPayFP, lastBlockPosBufferUpto, lastBlockPayloadByteUpto);
+    }
+    final int docDelta = docID - lastDocID;
+    docDeltaBuffer[docBufferUpto] = docDelta;
+    if (writeFreqs) {
+      freqBuffer[docBufferUpto] = termDocFreq; // 存储词频
+    }
+    docBufferUpto++;
+    docCount++;
+    //每128个term->freq作为一个Block存储到doc中
+    if (docBufferUpto == BLOCK_SIZE) { 
+      forUtil.writeBlock(docDeltaBuffer, encoded, docOut); 
+      if (writeFreqs) {
+        // 把128个缓存的文档freq缓存到doc中
+        forUtil.writeBlock(freqBuffer, encoded, docOut); 
+      }
+    }
+  }
+```
+该函数主要做了如下事情：
+1.将该term的doc,freq保存到docDeltaBuffer、freqBuffer中
+2.每128个docId-freq，通过`ForUtil.writeBlock`建立一个block, 放入doc文档。
+3.针对每个block，调用`Lucene50SkipWriter.bufferSkip`建立跳表结构。
+
+我们主要关注下，如何在`MultiLevelSkipListWriter.bufferSkip()`针对单个term每个block建立跳表结构的：
+```angular2html
+  public void bufferSkip(int df) throws IOException {
+    int numLevels = 1; 
+    // 统计可以构建几级跳表
+    // 第一级别跳表针对每128个doc-freq建立一个节点
+    df /= skipInterval;  
+    // 之后第n级别级别都是128*8^(n-1)个文档建立一个跳表节点
+    while ((df % skipMultiplier) == 0 && numLevels < numberOfSkipLevels) {
+      numLevels++;
+      df /= skipMultiplier;
+    }
+    long childPointer = 0;
+    // level值从小到大，在每层 level的字节数组末尾写入skip point
+    for (int level = 0; level < numLevels; level++) {
+      // 将 skip point写入 skipBuffer[level]中
+      writeSkipData(level, skipBuffer[level]);
+      long newChildPointer = skipBuffer[level].getFilePointer();
+      if (level != 0) { // 缓存第几级别
+        // 后一个level记录前一个level使用的缓存大小
+        skipBuffer[level].writeVLong(childPointer); 
+      }
+      childPointer = newChildPointer;
+    }
+  }
+```
+该函数主要是针对该term存储的每一个block（文档和freq）建立跳表结构，跳表第一级为每128（skipInterval）个block ，此后第n级跳表为每128*8^（n-1）个block。计算出了多少级（numLevels）， 然后针对这个block在每个级别上都建立跳表结构。我们具体看下`Lucene50SkipWriter.writeSkipData()`记录了每个跳表的具体数据：
+```
+  protected void writeSkipData(int level, IndexOutput skipBuffer) throws IOException {
+    // 计算当前level层，docId的delta值
+    int delta = curDoc - lastSkipDoc[level];
+    skipBuffer.writeVInt(delta);
+     // 该层级上一次的文档Id
+    lastSkipDoc[level] = curDoc;
+    // 写入 doc文件的偏移量的 delta值, 记录下该跳跃点在doc使用的大小
+    skipBuffer.writeVLong(curDocPointer - lastSkipDocPointer[level]); 
+    lastSkipDocPointer[level] = curDocPointer; // 记录当前doc占用的其实内存
+
+    if (fieldHasPositions) { // 向skipBuffer写入pos,doc,pay偏移量
+
+      skipBuffer.writeVLong(curPosPointer - lastSkipPosPointer[level]); // 记录下该跳跃点在pos使用的大小
+      lastSkipPosPointer[level] = curPosPointer;
+      skipBuffer.writeVInt(curPosBufferUpto); // 记录下当前缓存的文档数
+
+      if (fieldHasPayloads) {
+        skipBuffer.writeVInt(curPayloadByteUpto);
+      }
+
+      if (fieldHasOffsets || fieldHasPayloads) {
+        skipBuffer.writeVLong(curPayPointer - lastSkipPayPointer[level]); // 记录下该跳跃点在pay使用的大小
+        lastSkipPayPointer[level] = curPayPointer;
+      }
+    }
+
+    CompetitiveImpactAccumulator competitiveFreqNorms = curCompetitiveFreqNorms[level];
+    assert competitiveFreqNorms.getCompetitiveFreqNormPairs().size() > 0;
+    if (level + 1 < numberOfSkipLevels) {
+      curCompetitiveFreqNorms[level + 1].addAll(competitiveFreqNorms);
+    }
+    writeImpacts(competitiveFreqNorms, freqNormOut); // 向freqNormOut中写入影响因子
+    skipBuffer.writeVInt(Math.toIntExact(freqNormOut.getFilePointer()));
+    freqNormOut.writeTo(skipBuffer); // 把freqNormOut数据向skipBuffer中写入
+    freqNormOut.reset();
+    competitiveFreqNorms.clear();
+  }
+```
+每个跳表中主要存放了如下对象：
+
+
+## 构建词典结构
