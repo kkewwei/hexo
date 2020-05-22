@@ -71,7 +71,7 @@ docValue类型`DocValuesType`分为6种:
   SORTED,
   // 存储数值类型的有序数组列表   数值或日期或枚举字段+多值
   SORTED_NUMERIC,
-  // 可以存储多值域的docvalue值，但返回时，仅仅只能返回多值域的第一个docvalue
+  //同一个文档同一个域可以存储多值域的docvalue值，但返回时，仅仅只能返回多值域的第一个docvalue
   // es针对不分词字段，默认是这个设置
   SORTED_SET,
 ```
@@ -132,8 +132,8 @@ private void finishCurrentDoc() { // 把上个doc的值给存储起来
     docsWithField.add(currentDoc); // 存起来
   }
 ```
-1.首先对currentValues按照字符大小进行排序(默认一个文档一个域只有一个value, 极少数一个域多个value)
-2.轮训将该域每个value的termId放入pending中, 并将域的value个数放入pendingCounts(默认每个域的value个数都是1)。
+1.首先对currentValues按照字符大小进行排序(默认一个文档一个域只有一个value, 极少数一个域多个value)，这里体现了Sort的功能，是对当前文档当前域的多个value进行排序
+2.轮询将该域每个value的termId放入pending中, 并将域的value个数放入pendingCounts(默认每个域的value个数都是1)。
 3.将该文档ID放入docsWithField中。
 存储结构如下:
 <img src="https://kkewwei.github.io/elasticsearch_learning/img/lucene_docvalue1.png" height="250" width="850"/>
@@ -142,11 +142,12 @@ private void finishCurrentDoc() { // 把上个doc的值给存储起来
 <img src="https://kkewwei.github.io/elasticsearch_learning/img/lucene_docvalue2.png" height="250" width="850"/>
 
 # 刷新到文件
-为了更方面的了解dvd/dvm结构, 先上这两个文件的结构图:
+本文就以每个文档每个域只有一个value进行示例介绍，为了更方面的了解dvd/dvm结构, 先上这两个文件的结构图:
 <img src="https://kkewwei.github.io/elasticsearch_learning/img/lucene_docvalue3.png" height="320" width="900"/>
 DocValue刷新到文件的情况与fdt/fdx(详情参考<a href="https://kkewwei.github.io/elasticsearch_learning/2019/10/29/Lucenec%E5%BA%95%E5%B1%82%E6%9E%B6%E6%9E%84-fdt-fdx%E6%9E%84%E5%BB%BA%E8%BF%87%E7%A8%8B/">Lucene底层架构-fdt/fdx构建过程</a>)一样:
 1.lucene建立的索引结构占用内存超过阈值, 会在每次索引一个文档的时候检查。
 2.用户主动通过indexWriter.flush()触发。
+可能有些人有些疑问，我们既然知道了TermId, 那如何根据知道当前termId是属于哪个DocId的，本文以单个文档单个域只有一个value进行介绍的，那么termId就等于DocId。至于单个文档单个域内有多个value的话，在dvd中会记录每个docId里面每个field的value个数
 本文就从DefaultIndexingChain.writeDocValues()开始介绍:
 ```
   private void writeDocValues(SegmentWriteState state, Sorter.DocMap sortMap) throws IOException {

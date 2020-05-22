@@ -88,6 +88,7 @@ int main(){
 3. 客户端调用了close之后, 若服务器端不调用close, 那么服务器端将长时间处于FIN_WAIT2阶段, 除非超时2小时,才会关闭。
 4. 服务器端调用了close之后, 经过验证, 此时客户端连接还处于CLOSE_WAIT, 等待2MSL(60s)超时彻底关闭, 也就是说client在CLOSE_WAIT会停留60s才彻底释放链接。
 5.只有当客户端彻底处于close阶段, 才会释放套接字链接, 包括port。服务器也是同样的。
+这里还需要明确的一点就是：服务器端主要主动调用close函数，也会进入time_wait阶段。
 
 # JAVA NIO通信关闭管理
 我们在nio通信时, 会通过调用SocketChannelImpl.close来关闭通信管道, 这种方式和linux C++版本的close(sock)还是有一些区别的, 实际关闭网络管道靠的是<a href="https://kkewwei.github.io/elasticsearch_learning/2017/04/10/Java-NIO-write-read%E8%BF%87%E7%A8%8B%E5%88%86%E6%9E%90/#begin">implCloseSelectableChannel</a>, 该函数做了如下事情:

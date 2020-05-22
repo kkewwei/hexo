@@ -187,7 +187,7 @@ PhantomReference并不会对对象的垃圾回收产生任何影响, 当进行gc
         handler.start();
     }
 ```
-可以看出来, JV会新建名为`Reference Handler`的线程, 时刻回收被挂到pending上面的虚拟引用。 当DirectByteBuff对象仅被Cleaner引用时, Cleaner被放入pending队列, 之后调用Cleaner.clean()队列
+可以看出来, JVM会新建名为`Reference Handler`的线程, 时刻回收被挂到pending上面的虚拟引用(该线程在JVM启动时就会产生)。 当DirectByteBuff对象仅被Cleaner引用时, Cleaner被放入pending队列, 之后调用Cleaner.clean()队列
 ```
  public void clean() {  //这里的clean(）会在Reference回收时显示调用
         if (!remove(this))
@@ -235,7 +235,7 @@ private static class Deallocator  implements Runnable
 }
 
 ```
-可以看到, 此时完成了DirectByteBuff直接内存的释放。
+可以看到, 此时完成了DirectByteBuff直接内存的释放（虚引用中保存有堆外内存的直接地址，来达到释放堆外地址的效果）。
 可能有些人会好奇: 为什么IO操作不直接使用堆内内存? 这是因为堆内内存会发生GC移动操作, 对象移动后, 其绝对内存地址也会发生改变, 而gc时对象移动操作很频繁, 不可能每次移动堆内数据, IO时缓存的buffer也跟着一起移动。这样也是不合理的。 而IO操作直接使用堆外内存则没有了这一限制。同时jvm中IO操作的Buffer必须是DirectBuffer(可查看IO.write/read函数)。
 # 堆外内存的检测
 1. 通过DirectByteBuffer申请的堆外内存, 我们可以通过如下的方式获取到:

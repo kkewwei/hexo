@@ -84,8 +84,9 @@ class Consumer extends Thread {
 注意阻塞队列和条件队列结构的区别:
 + 阻塞队列拥有head, head不存放任何线程; 由tail指定结尾; 条件队列首尾由firstWaiter,lastWaiter指定, 第一个线程即为firstWaiter。
 + 阻塞队列由next, pre连接; 条件队列由nextWaiter连接
+其中await必须是先调用，signal才能调用。否则将抛异常。
 
-# wait()
+# await()
 wait主要是将该线程存放在Condition队列等待被唤醒。empty.await()实际调用的AbstractQueuedSynchronizer中的wait函数:
 ```
    public final void await() throws InterruptedException {

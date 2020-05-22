@@ -237,7 +237,7 @@ int main(){
 4. 发起外来连接(客户端), 即调用TCP的connect函数。(connect同样可用于UDP, 不过它不能使一个真正的连接建立起来, 它只是是内核保存对端的IP和端口号)。TCP连接的建立涉及一个三次握手过程, 而且connect函数一直要等到客户端收到对于自己的SYN的ACK为止才返回。 这意味着TCP的每一个connect总会阻塞其调用进程至少一个到服务器的RTT时间。
 在代码里面, 我们可以通过`channel.configureBlocking(false)`设置管道的非阻塞。在JAVA NIO中, 若我们对ServerSocketChannelImp和SocketChannelImp不设置非阻塞, 那么程序将检查不通过。
 
-# open
+# ServerSocketChannel.open
 有了复路选择器提供者之后, 就该产生ServerSocketChannelImpl了, 任何与client建立建立都是由它完成的, 我们看下初始化做了什么工作
 ```
     ServerSocketChannelImpl(SelectorProvider sp) throws IOException {
@@ -257,7 +257,7 @@ int main(){
 ```
 可以看到初始化主要做了如下工作:
 1. 通过调用java nio Java_sun_nio_ch_Net_socket0 获取文件描述符fd(int类型)
-2. 产生FileDescriptor对象fd, 然后调用nio函数setfdVal, 对这个赋值, 将数字类型的fd放入FileDescriptor的类中。
+2. 产生FileDescriptor对象fd, 然后调用nio函数setfdVal（Java_sun_nio_ch_Net_setIntOption0）, 对这个赋值, 将数字类型的fd放入FileDescriptor的类中。
 3. 通过nio IOUtil.fdVal获取FileDescriptor中的fd属性值, 保存在ServerSocketChannelImpl的fdVal中
 4. 设置ServerSocketChannelImpl的状态为ST_INUSE 正使用状态。
 FileDescriptor里面的fd作为java与底层c++沟通的桥梁。 从FileDescriptor中获取fd ,也是通过java nio饶了一圈, 而不是直接从java FileDescriptor, 原因是FileDescriptor fd属性被设置成了private(保证fd的安全性)
@@ -634,7 +634,7 @@ Java_sun_nio_ch_KQueueArrayWrapper_register0(JNIEnv *env, jobject this,
 ```
 &#160; &#160; &#160; &#160;可以看到, 主要是向KQueueSelectorImpl注册了此次的SelectionKeyImpl。这里也是可以看到, 对于一个管道(ServerSocketChannelImp或者SocketChannelImp), 只能在KQueueSelectorImpl注册一个事件。3. 检查目前是否该管道是否在selector上面已经注册了, 若注册了, 那么修改关注的事件。否则就调用register去KQueueSelectorImpl中注册这个事件。这里还有一个细节需要注意下, 在k.interestOps中, kevent只有read/write等几种事件类型, 并没有Accept事件, 所以会将ACCEPT事件转变为READ事件。
 
-## select
+# select
 然后就开始真正向kqueue注册感兴趣的事件了:
 ```
     protected int KQueueSelectorImpl.doSelect(long timeout) throws IOException {
