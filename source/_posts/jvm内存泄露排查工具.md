@@ -1,48 +1,18 @@
 ---
-title: jvm内存泄露排查工具
+title: jvm堆外内存泄露排查工具
 date: 2016-12-15 21:12:10
 tags: perftools、jcmd、pmap
 toc: true
 categories: 工具学习
 ---
 本文介绍几个不常用的内存泄露排查工具:perftools、pmap、jcmd。
-
-## perftools
-perftools是一款比较好的分析堆外内存泄漏的工具, 原理: 通过使用自己实现的libtcmalloc.so来替换原有的内存分配函数, 来达到监控内存分配的目的
-
-#### 安装
-perftools安装需要依赖:libunwind, 首先安装libunwind:
-+ wget https://github.com/libunwind/libunwind/releases/download/v1.2.1/libunwind-1.2.1.tar.gz
-+ tar -xvf libunwind-1.2.1.tar.gz
-+ cd libunwind-1.2.1
-+ ./configure  --prefix=/home/target/libunwind
-+ make
-+ make install
-其次安装perftools:
-+ wget https://github.com/gperftools/gperftools/releases/download/gperftools-2.6.1/gperftools-2.6.1.tar.gz
-+ tar -xvf gperftools-2.6.1.tar.gz
-+ cd gperftools-2.6.1
-+ ./configure --prefix=/home/target/gperftools
-+ make (安装时候, 可能会报g++: command not found, 切换到root: yum -y install gcc+ gcc-c++, 需要再次执行上一步, 否则会报异常)
-+ make install
-我们还需要设置一些环境变量:
-export LD_PRELOAD=/home/target/gperftools/lib/libtcmalloc.so
-目的：在程序启动时自动链接libtcmalloc.so
-export HEAPPROFILE=/you_directory/heap.hprof
-目的: 内存才能监控将产生很多.heap, 设置文件存放位置
-export HEAP_PROFILE_ALLOCATION_INTERVAL=10000000
-目的: 内存使用多少, 会产生一个.heap文件。 默认每使用1G, 产生一个.bin文件。
-
-#### 使用
-+ 直接启动jvm进程, perftools会监控内存使用
-<img src="https://kkewwei.github.io/elasticsearch_learning/img/jvm_memory_leak.png" height="250" width="850"/>
-+ 查看产生的heap.hprof.0001.heap文件
-<img src="https://kkewwei.github.io/elasticsearch_learning/img/jvm_memory_leak1.png" height="450" width="850"/>
-其中对每列的介绍如下:
-The first column contains the direct memory use in MB(当前函数目前使用的直接内存大小).
-The fourth column contains memory use by the procedure and all of its callees(当前函数及其调用者使用的直接内存).
-The second and fifth columns are just percentage representations of the numbers in the first and fifth columns.
-The third column is a cumulative sum of the second column (i.e., the kth entry in the third column is the sum of the first k entries in the second column.)(目前占用的总堆外内存大小)
+# 堆外内存分类
+ 1.通过`ByteBuffer.allocateDirect`方式申请的内存。可以通过编写`ManagementFactory.getPlatformMXBeans(BufferPoolMXBean.class)`、jcmd方式监控到
+ 2.通过`UNSAFE.allocateMemory()`方式申请的内存, 可以通过jcmd方式监控到。
+ 3.通过mmap0()方式分配内存,
+ 4.线程栈使用的内存, 通过统计线程个数查看(jcmd中也有统计)
+ 5.java8的metaspace元数据空间
+ 6.JNI里分配的内存(一般需要pmap、perf工具检测)
 
 ## jcmd
 jcm是一个多功能工具, 功能如下:
@@ -85,7 +55,7 @@ help
 |detail.diff|内存增量的详情|
 |summary.diff|内存增量的汇总情况|
 
-VM.native_memory显示的内存包含`堆内内存、Code区域、通过unsafe.allocateMemory(DirectByteBuffer实际也是由前者产生)，但是不包含其他Native Code（C代码）申请的堆外内存`。
+VM.native_memory显示的内存包含`堆内内存、Code区域、通过unsafe.allocateMemory、DirectByteBuffer实际也是由前者产生，但是不包含其他Native Code（C代码）申请的堆外内存`。
 
 #### VM.native_memory
 用法: jcmd pid VM.native_memory detail
@@ -191,7 +161,12 @@ Details:
 [0x00007ff092b11f43] universe_post_init()+0x883
                              (malloc=34816KB #34)
 ```
-至于每个内存块存放的详情, 可以在pmap里查看。可见, 我们可以根据detail可以了解每块内存是由谁申请的。
+至于每个内存块存放的详情, 可以在pmap里查看。可见, 我们可以根据detail可以了解每块内存是由谁申请的。其中reserved和committed代表的大小仍然可能还没有加载到内存中。其中
+```
+保留内存（reserved）：reserved memory 是指JVM 通过mmaped PROT_NONE 申请的虚拟地址空间，在页表中已经存在了记录（entries），保证了其他进程不会被占用，且保证了逻辑地址的连续性，能简化指针运算。
+提交内存（commited）：committed memory 是JVM向操做系统实际分配的内存（malloc/mmap）,mmaped PROT_READ | PROT_WRITE,仍然会page faults，但是跟 reserved 不同，完全内核处理像什么也没发生一样
+```
+可<a href="https://coldwalker.com/2018/08//troubleshooter_native_memory_increase/">参考</a>
 
 #### 内存增量diff
 执行顺序:
@@ -232,7 +207,7 @@ Total: reserved=1617492KB +13331KB, committed=319304KB +13331KB
 如上图, 可以轻易发现Unsafe_AllocateMemory diff期间,增加了13次内存分配, 新增了13MB内存申请。
 
 ## pmap
-pmap可以查看进程使用的内存分布, 包括所有堆内和堆外内存。
+pmap(系统层面工具)可以查看进程使用的内存分布, 包括所有堆内和堆外内存, 其实pmap是从/proc/$pid/maps中获取的内存映射, 每个内存区更详细的内存映射可以从/proc/$pid/smaps中查看到。
 使用: pmap -x 9752 | sort -n -r -k 2, 并不需要root或者别的参数就可以执行, 查看进程的内存映射信息
 ```
 mapped: 5341520K    writeable/private: 308668K    shared: 3836K
@@ -268,12 +243,12 @@ Address           Kbytes       Mode   Offset Device  Mapping
 00007fb7a1802000    2048       0       0 -----  libpthread-2.12.so
 00007fb7a15ea000    2048       0       0 -----  libjli.so
 ```
-Address:  start address of map  映像起始地址, 就是真实内存地址
+Address:  start address of map  映像的虚拟起始地址,
 Kbytes:  size of map in kilobytes  映像大小
 RSS:  resident set size in kilobytes  驻留集大小
 Dirty:  dirty pages (both shared and private) in kilobytes  脏页大小
 Mode:  permissions on map 映像权限: r=read, w=write, x=execute, s=shared, p=private (copy on write)
-Mapping:  file backing the map , or '[ anon ]' for allocated memory, or '[ stack ]' for the program stack.  映像支持文件,[anon]为已分配内存 [stack]为程序堆栈
+Mapping:  file backing the map , or '[ anon ]' for allocated memory, or '[ stack ]' for the program stack.  映像支持文件,[anon]为对的内存分配, [stack]为程序堆栈
 Offset:  offset into the file  文件偏移
 Device:  device name (major:minor)  设备名
 第一行的值:
@@ -289,6 +264,49 @@ mapped: 5413480K    writeable/private: 380548K    shared: 3836K
 mapped: 5414508K    writeable/private: 381576K    shared: 3836K
 mapped: 5415536K    writeable/private: 382604K    shared: 3836K
 ```
+
+## gdb
+可以通过gdb dump线上虚拟内存中地址中的内容, 需要结合pmap一起使用, 可参考<a href="https://kkewwei.github.io/elasticsearch_learning/2016/12/20/gdb%E8%B0%83%E8%AF%95java%E5%9F%BA%E6%9C%AC%E7%94%A8%E6%B3%95/">gdb调试java基本用法</a>
+
+## perftools
+perftools是一款比较好的性能分析工具, 支持cpu、内存使用分析, 原理: 通过使用自己实现的libtcmalloc.so来替换原有的内存分配函数, 来达到监控内存分配的目的
+
+#### 安装
+perftools安装需要依赖:libunwind, 首先安装libunwind:
++ wget https://github.com/libunwind/libunwind/releases/download/v1.2.1/libunwind-1.2.1.tar.gz
++ tar -xvf libunwind-1.2.1.tar.gz
++ cd libunwind-1.2.1
++ ./configure  --prefix=/home/target/libunwind
++ make
++ make install
+其次安装perftools:
++ wget https://github.com/gperftools/gperftools/releases/download/gperftools-2.6.1/gperftools-2.6.1.tar.gz
++ tar -xvf gperftools-2.6.1.tar.gz
++ cd gperftools-2.6.1
++ ./configure --prefix=/home/target/gperftools
++ make (安装时候, 可能会报g++: command not found, 切换到root: yum -y install gcc+ gcc-c++, 需要再次执行上一步, 否则会报异常)
++ make install
+
+#### 使用
++ 我们还需要设置一些环境变量:
+export LD_PRELOAD=/home/target/gperftools/lib/libtcmalloc.so
+目的：在程序启动时自动链接libtcmalloc.so
+export HEAPPROFILE=/you_directory/heap.hprof
+目的: 内存才能监控将产生很多.heap, 设置文件存放位置
+export HEAP_PROFILE_ALLOCATION_INTERVAL=10000000
+目的: 内存使用多少, 会产生一个.heap文件。 默认每使用1G, 产生一个.bin文件。
++ 直接启动jvm进程, perftools会监控内存使用
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/jvm_memory_leak.png" height="250" width="850"/>
++ 查看产生的heap.hprof.0001.heap文件
+~/gperftools/bin/pprof --text java8 /usr/local/java18/bin/java /target/heap.hprof.0030.heap
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/jvm_memory_leak1.png" height="450" width="850"/>
+其中对每列的介绍如下:
+The first column contains the direct memory use in MB(当前函数目前使用的直接内存大小).
+The fourth column contains memory use by the procedure and all of its callees(当前函数及其调用者使用的直接内存).
+The second and fifth columns are just percentage representations of the numbers in the first and fifth columns.
+The third column is a cumulative sum of the second column (i.e., the kth entry in the third column is the sum of the first k entries in the second column.)(目前占用的总堆外内存大小)
+
+
 # 参考
 http://goog-perftools.sourceforge.net/doc/heap_profiler.html
 https://docs.oracle.com/javase/8/docs/technotes/guides/troubleshoot/tooldescr007.html
@@ -297,3 +315,4 @@ https://tech.meituan.com/2019/01/03/spring-boot-native-memory-leak.html
 https://www.cnblogs.com/sidesky/p/10009241.html
 https://yq.aliyun.com/articles/227924
 https://www.cnblogs.com/ggjucheng/p/3348439.html
+https://coldwalker.com/2018/08//troubleshooter_native_memory_increase/

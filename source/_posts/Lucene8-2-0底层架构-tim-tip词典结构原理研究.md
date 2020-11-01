@@ -554,24 +554,24 @@ doc存储的docId-freq及跳表结构如下所示：
 存放的是term中第i个元素与前一个term该元素不一致时， pending中目前存储的term个数，该数组反映的是这一堆terms的相似性。我们以如下terms为例：
 ```
      当前写入顺序                   当前term写入时，prefixStarts值         pending.size() - prefixStarts[i]最大值：
-0    61 62 63                      0 0 0                  
-1    61 62 63 64                   0 0 0 1
-2    61 62 64                      0 0 2 1                             2-1
-3    61 62 65 66 30                0 0 3 3 3                           3-3  
-4    61 62 65 66 31                0 0 3 3 4                           4-4
-5    61 62 65 66 31 30             0 0 3 3 4 5                         5-5
-6    61 62 65 66 31 30 30          0 0 3 3 4 5 6                       6-6
-7    61 62 65 66 31 30 30 30       0 0 3 3 4 5 6 7                     7-7
-8    61 62 65 66 31 30 30 30 30    0 0 3 3 4 5 6 7 8                   8-8
-9    61 62 65 66 31 30 30 30 31    0 0 3 3 4 5 6 7 9                   9-9         
-10   61 62 65 66 31 30 30 30 32    0 0 3 3 4 5 6 7 10                  10-10         
-11   61 62 65 66 31 30 30 30 33    0 0 3 3 4 5 6 7 11                  11-11    
-12   61 62 65 66 31 30 30 30 34    0 0 3 3 4 5 6 7 12                  12-12         
-13   61 62 65 66 31 30 30 30 35    0 0 3 3 4 5 6 7 13                  13-13         
-14   61 62 65 66 31 30 30 30 36    0 0 3 3 4 5 6 7 14                  14-14         
-15   61 63                        0 15 3 3 4 5 6 7 14                  15-3
+0    61 62 63                      0 0 0                               \
+1    61 62 63 64                   0 0 0 1                             1-1=0
+2    61 62 64                      0 0 2 1                             2-1=1
+3    61 62 65 66 30                0 0 3 3 3                           3-3=0
+4    61 62 65 66 31                0 0 3 3 4                           4-4=0
+5    61 62 65 66 31 30             0 0 3 3 4 5                         5-5=0
+6    61 62 65 66 31 30 30          0 0 3 3 4 5 6                       6-6=0
+7    61 62 65 66 31 30 30 30       0 0 3 3 4 5 6 7                     7-7=0
+8    61 62 65 66 31 30 30 30 30    0 0 3 3 4 5 6 7 8                   8-8=0
+9    61 62 65 66 31 30 30 30 31    0 0 3 3 4 5 6 7 9                   9-9=0
+10   61 62 65 66 31 30 30 30 32    0 0 3 3 4 5 6 7 10                  10-10=0
+11   61 62 65 66 31 30 30 30 33    0 0 3 3 4 5 6 7 11                  11-11=0
+12   61 62 65 66 31 30 30 30 34    0 0 3 3 4 5 6 7 12                  12-12=0
+13   61 62 65 66 31 30 30 30 35    0 0 3 3 4 5 6 7 13                  13-13=0
+14   61 62 65 66 31 30 30 30 36    0 0 3 3 4 5 6 7 14                  14-14=0
+15   61 63                        0 15 3 3 4 5 6 7 14                  15-3=12
 ```
-prefixStarts数组的变化如图所示：每层第一次出现的字母的位置为i，则currentRerm[i]!=lastTerm[i], prefixStarts[i]=pending.size()。而仅当pending.size() - prefixStarts[i] > minItemsInBlock（线上默认配置25）时， 会截取这部分terms进行构建子FST结构。 假如minItemsInBlock=12， 那么我们会选择从3-14行共12个term产生子FST。
+prefixStarts数组的变化如图所示：每层第一次出现的字母的位置为i，则currentRerm[i]!=lastTerm[i], prefixStarts[i]=pending.size()。而仅当pending.size() - prefixStarts[i] > minItemsInBlock（线上默认配置25）时， 会截取这部分terms进行构建子FST结构。 假如minItemsInBlock=10， 那么我们会选择从3-14行共12个term产生子FST。
 + PendingTerm与PendingBlock
 单个term放在PendingTerm里面；多个相似性高的term组建起来，将这些terms相似前缀作为一个term，构建成一个子字典，形成一个PendingBlock，来代替这组相似的terms和别term继续组建更广泛的字典。
 
@@ -806,6 +806,7 @@ output能够快速定位block在tim中的存储位置，主要由一下几部分
 + block0在tim文件中的起始位置。
 + 即将构建的FST是否有term。
 + blockCount-1个数组，分别反映了该fst下blockCount-1个子block在tim中的位置。
++ floorLeadByte后续紧接着的block的terms第一个term最后一个字符(与本block的terms最后一个term不相同的字符)
 2) 将输入的产生的PendingBlock列表构建成一个FST，构建原理可以参考：<a href="https://kkewwei.github.io/elasticsearch_learning/2020/02/25/Lucene8-2-0%E5%BA%95%E5%B1%82%E6%9E%B6%E6%9E%84-%E8%AF%8D%E5%85%B8fst%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90/">Lucene8.2.0底层架构-词典fst原理解析</a>
 构建出来的FST如下所示：
 <img src="https://kkewwei.github.io/elasticsearch_learning/img/lucene_tim7.png" height="400" width="400"/>

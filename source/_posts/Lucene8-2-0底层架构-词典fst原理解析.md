@@ -61,7 +61,7 @@ UnCompiledNode的主要属性:
     public Arc<T>[] arcs;
     // 表示从Node出发的Arc数量是0，当Node是Final Node时，output才有值。
     public boolean isFinal;
-     //这个节点上UnCompiledNode进来的边
+     //这个节点上UnCompiledNode进来的边。实际基本并没有使用
     public long inputCount;
     // 从根节点到本节点的深度
     public final int depth;

@@ -203,7 +203,7 @@ fdt文件结构如下所示:
    indexWriterConfig.setMaxBufferedDocs(201);
    indexWriterConfig.indexWriterConfig.setRAMBufferSizeMB(16)
 ```
-lucene默认内存参数设置16mb, 文档个数缓存无限制。而在es中, 默认也没有对文档个数限制, 而对总的内存使用做出限制, 可以通过indices.memory.index_buffer_size设置, 默认10%内存, 若超过了内存限制, 则会进行所有索引文件的刷新工作, 当然也包括fdt/fdx文件的构建。 检查是否超过阈值的代码可参考DocumentsWriterFlushControl.doAfterDocument()。
+lucene默认内存参数设置16mb, 文档个数缓存无限制。而在es中, 默认也没有对文档个数限制, 也没有通过Lucene的内存使用来进行限制, 在ES7版本中, 对Lucene该值设置的非常大,就是为了不生效。而使用indices.memory.index_buffer_size对内存限制, 是在es层面的限制, 默认10%内存, 每次写入时都在InternalEngine中检查所有shard的内存写入占用。若超过了内存限制, 则会进行所有索引文件的刷新工作, 当然也包括fdt/fdx文件的构建。 检查是否超过阈值的代码可参考DocumentsWriterFlushControl.doAfterDocument()。
 实际完成一个fdx文件写入的代码可以看下StoredFieldsConsumer.flush()函数:
 ```
   void flush(SegmentWriteState state, Sorter.DocMap sortMap) throws IOException {

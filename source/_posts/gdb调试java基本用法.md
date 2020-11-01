@@ -10,7 +10,7 @@ categories: 工具学习
 
 ---
 jvm进程崩溃时, 可以产生coredump文件, 该dump文件记录了崩溃时cpu、jvm当前线程、当前内存的使用情况, 学会分析该coredump对于我们排查问题十分重要, 本文将主要讲解如何通过gdb分析该coredump文件。
-## coredump产生
+# coredump产生
 第一步检查系统是否允许产生coredump文件
 操作系统默认禁止coredump文件的产生, 可以通过`ulimit -c`查看是否允许产生coredump文件, 若显示为0, 则禁止线程崩溃时产生该core文件, 可以通过`echo "ulimit  -c unlimited" >> /etc/profile`. 我们也可以通过cat /pro/$pid/limits 查看设置情况
 ```
@@ -33,8 +33,8 @@ Max realtime priority     0                    0
 Max realtime timeout      unlimited            unlimited            us
 ```
 可以看到Max core file size设置为unlimited, 是运行产生core 文件的。
-第二步, 通过kill -6 pid 向进程发送abort信号产生core文件(默认文件名称)。
-## gdb基本使用
+第二步, 通过kill -6 pid 向进程发送abort信号产生core文件(默认文件名称,不是kill -9)。
+# gdb基本使用
 
 |命令|简写|说明|
 |:-|:-|:-|
@@ -57,7 +57,7 @@ Max realtime timeout      unlimited            unlimited            us
 |quit|q|退出GDB环境|
 (参考<a href="https://blog.csdn.net/zdy0_2004/article/details/80102076">gdb调试的基本使用</a>)
 
-## 分析coredump文件
+# 分析coredump文件
 + gdb java core
 调用如上命令加载core文件(这里的core指的是core文件名称)。
 1. 执行`info threads`, 其实可以通过`info`查看需要详细数据
@@ -204,8 +204,18 @@ JVM version is 25.121-b13
 + 通过core文件产生heapdump文件
 `xxxxx@slave1:~$ jmap -dump:format=b,file=dump.hprof $JAVA_HOME/bin/java core`
 
-# dump内存区域
-
+# 在线dump虚拟地址内的数据
+1.`使用gdb -pid $pid`,该命令使用将小心, 它会直接hung住进程, 禁止直接对线上进程设置。
+2.接着可以dump某个内存中的内容放入memory.bin1中:`dump memory memory.bin1 startoffset endoffset`, 其中startoffset、endoffset取值可以从/proc/$pids/maps中获取:
+```
+Reading symbols from /usr/local/jdk1.8.0_45/jre/lib/amd64/libnio.so...(no debugging symbols found)...done.
+Loaded symbols for /usr/local/jdk1.8.0_45/jre/lib/amd64/libnio.so
+0x00007fd979de22fd in pthread_join () from /lib64/libpthread.so.0
+Missing separate debuginfos, use: debuginfo-install jdk-1.8.0-45.x86_64
+No symbol table is loaded.  Use the "file" command.
+(gdb) dump memory memory.bin1 0x7fd8bc000000 0x7fd8bc029000
+```
+3.使用`strings memory.bin1`查找包含的字符创, 或者使用`hexDump -C memory.bin1`, 以二进制打开内存dump。(若内存区域无值, 此方法将无用)
 
 # 参考
 https://blog.csdn.net/zdy0_2004/article/details/80102076
