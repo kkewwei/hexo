@@ -379,10 +379,10 @@ BKDWriter函数就是构建BKD数的核心类， 需要继续进入BKDWriter.wri
 ```
 该函数主要做了如下事情：
 1.通过computeCommonPrefixLengthAndBuildHistogram统计第splitDim维度逻辑位数第d位相同的前缀commonPrefixLength，并且统计每个字母出现的次数histogram。
-<img src="https://kkewwei.github.io/elasticsearch_learning/img/bkd2.png" height="550" width="400"/>
-2.若commonPrefixLength大于0，代表有该维度逻辑位数为d位有相同的前缀。同时检测到还有逻辑位数没有排序完，那么直接跳到逻辑位数不同的位数继续进行排序。
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/bkd2.png" height="300" width="570"/>
+2.若commonPrefixLength大于0，代表该维度逻辑位数为d位有相同的前缀。同时检测到还有逻辑位数没有排序完，那么直接跳到逻辑位数不同的位数继续进行排序。
 3.否则，该维度逻辑位数为d位没有相同的前缀，那么就统计下，第k（初始化时为mid）个数逻辑位数d的值在哪个histogram维度内，然后调用`partition()`按照快排的思想将找出bucketTo-bucketFrom的值放在中间，这样，左边的值都小于中间的那组值，右边的值都大于中间的那组值。
-<img src="https://kkewwei.github.io/elasticsearch_learning/img/bkd3.png" height="350" width="350"/>
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/bkd3.png" height="350" width="450"/>
 4.继续递归，完成第k个所在那档的元素所在splitDim维度逻辑为数第d+1位有序，直到这档splitDim维度逻辑完全有序。
 此时，所有元素在splitDim维度维度，形成了相对排序：以k为分隔， 第k个元素左边的所有元素均小于等于k，第k个元素右边的所有元素均大于等于k。
 
@@ -417,23 +417,27 @@ BKDWriter函数就是构建BKD数的核心类， 需要继续进入BKDWriter.wri
       // Find the dimension that has the least number of unique bytes at commonPrefixLengths[dim]
       FixedBitSet[] usedBytes = new FixedBitSet[numDataDims];
       for (int dim = 0; dim < numDataDims; ++dim) {
-        if (commonPrefixLengths[dim] < bytesPerDim) { // 所有字符不一样长
-          usedBytes[dim] = new FixedBitSet(256); //因为最多有128个字符，这里用256位就满足了.只有不一样的才会被赋值
+         // 所有字符不一样长
+        if (commonPrefixLengths[dim] < bytesPerDim) {
+         //因为最多有128个字符，这里用256位就满足了.只有不一样的才会被赋值
+          usedBytes[dim] = new FixedBitSet(256); 
         }
       } // 统计不一样的那个维度，去重之后可以分为多少个字符
       for (int i = from + 1; i < to; ++i) {
         for (int dim=0;dim<numDataDims;dim++) {
           if (usedBytes[dim] != null) { // 该维度值不一样
-            byte b = reader.getByteAt(i, dim * bytesPerDim + commonPrefixLengths[dim]);//
+            byte b = reader.getByteAt(i, dim * bytesPerDim + commonPrefixLengths[dim]);
             usedBytes[dim].set(Byte.toUnsignedInt(b));
           }
         }
       }
-      int sortedDim = 0; // 统计两个维度中distinct字母最少的那个维度
-      int sortedDimCardinality = Integer.MAX_VALUE; // distinct后的值个数
+      // 统计两个维度中distinct字母最少的那个维度
+      int sortedDim = 0; 
+       // distinct后的值个数
+      int sortedDimCardinality = Integer.MAX_VALUE;
       for (int dim = 0; dim < numDataDims; ++dim) {
         if (usedBytes[dim] != null) {
-          final int cardinality = usedBytes[dim].cardinality(); //
+          final int cardinality = usedBytes[dim].cardinality();
           if (cardinality < sortedDimCardinality) {
             sortedDim = dim;
             sortedDimCardinality = cardinality;
@@ -447,20 +451,29 @@ BKDWriter函数就是构建BKD数的核心类， 需要继续进入BKDWriter.wri
 
       BytesRef comparator = scratchBytesRef1;
       BytesRef collector = scratchBytesRef2;
-      reader.getValue(from, comparator); // 读取排序后的第一个元素，被比较的数
-      int leafCardinality = 1; // 获取的是元素（全维度）与后面一个元素不相同的个数
+       // 读取排序后的第一个元素，被比较的数
+      reader.getValue(from, comparator);
+      // 获取的是元素（全维度）与后面一个元素不相同的个数
+      int leafCardinality = 1; 
       for (int i = from + 1; i < to; ++i) {
-        reader.getValue(i, collector); // 读取下一个元素, collector是最新的数
-        for (int dim =0; dim < numDataDims; dim++) { // 几个维度，只有前面一个和后面有一个不相同，就leafCardinality+1
-          final int start = dim * bytesPerDim + commonPrefixLengths[dim]; // 从不同之处开始比较
+         // 读取下一个元素, collector是最新的数
+        reader.getValue(i, collector); 
+        // 几个维度，只有前面一个和后面有一个不相同，就leafCardinality+1
+        for (int dim =0; dim < numDataDims; dim++) { 
+          // 从不同之处开始比较 
+          final int start = dim * bytesPerDim + commonPrefixLengths[dim];
           final int end = dim * bytesPerDim + bytesPerDim;
+          // 如果不是完全一样
           if (FutureArrays.mismatch(collector.bytes, collector.offset + start, collector.offset + end,
-                  comparator.bytes, comparator.offset + start, comparator.offset + end) != -1) {// 如果不是完全一样
-            leafCardinality++; // 每个value都不同
-            BytesRef scratch = collector;// 在交换collector和comparator的值，是想前后比较是否一致
+                  comparator.bytes, comparator.offset + start, comparator.offset + end) != -1) {
+            // 每个value都不同
+            leafCardinality++; 
+            // 在交换collector和comparator的值，是想前后比较是否一致
+            BytesRef scratch = collector;
             collector = comparator;
             comparator = scratch;
-            break; // 直接退出了, 所以交换没啥用
+            // 直接退出了, 所以交换没啥用
+            break; 
           }
         }
       }
@@ -469,15 +482,19 @@ BKDWriter函数就是构建BKD数的核心类， 需要继续进入BKDWriter.wri
       // Write doc IDs
       int[] docIDs = spareDocIds;
       for (int i = from; i < to; ++i) {
-        docIDs[i - from] = reader.getDocID(i); // 获取from->to之间的文档Id
+        // 获取from->to之间的文档Id
+        docIDs[i - from] = reader.getDocID(i); 
       }
       //System.out.println("writeLeafBlock pos=" + out.getFilePointer());
-      writeLeafBlockDocs(scratchOut, docIDs, 0, count);  // 把文档Id给存储起来了
+       // 把文档Id给存储起来了
+      writeLeafBlockDocs(scratchOut, docIDs, 0, count); 
       // 存储相同的前缀
       // Write the common prefixes:
-      reader.getValue(from, scratchBytesRef1); // copy第一个词
+       // copy第一个词
+      reader.getValue(from, scratchBytesRef1);
       System.arraycopy(scratchBytesRef1.bytes, scratchBytesRef1.offset, scratch1, 0, packedBytesLength);
-      writeCommonPrefixes(scratchOut, commonPrefixLengths, scratch1); // 存储前缀
+      // 存储前缀
+      writeCommonPrefixes(scratchOut, commonPrefixLengths, scratch1); 
       // Write the full values:
       IntFunction<BytesRef> packedValues = new IntFunction<BytesRef>() {
         @Override
@@ -486,15 +503,14 @@ BKDWriter函数就是构建BKD数的核心类， 需要继续进入BKDWriter.wri
           return scratchBytesRef1;
         }
       };
-      assert valuesInOrderAndBounds(count, sortedDim, minPackedValue, maxPackedValue, packedValues,
-              docIDs, 0);  // 再写入叶子剩余数据
+      // 再写入叶子剩余数据
       writeLeafBlockPackedValues(scratchOut, commonPrefixLengths, count, sortedDim, packedValues, leafCardinality);
-      // 写入文件
-      out.writeBytes(scratchOut.getBytes(), 0, scratchOut.getPosition()); // 写入kdd文件
+      // // 写入kdd文件
+      out.writeBytes(scratchOut.getBytes(), 0, scratchOut.getPosition()); 
       scratchOut.reset();
 ```
 具体做了如下事情：
-1.遍历from-to所有元素，依次比较每个元素同一个维度相同的前缀长度，存放在commonPrefixLengths
+1.遍历from-to所有元素，依次比较每个元素同一个维度相同的前缀长度，存放在commonPrefixLengths。
 2.统计每个维度不相同前缀元素的cardinaliy，统计时使用长度为256的FixedBitSet，代表着256个字符。
 3.遍历每个维度，找出cardinaliy值最小的那个维度sortedDim。
 4.基于sortedDim维度，调用`MutablePointsReaderUtils.sortByDim`使用快排原理保证叶子内所有元树在sortedDim维度有序。
@@ -502,9 +518,12 @@ BKDWriter函数就是构建BKD数的核心类， 需要继续进入BKDWriter.wri
 6.存储from-to个元素的docId
 7.存储每个维度相同的前缀。
 8.使用`BKDWriter.writeLeafBlockPackedValues()`存储from-to个具体的元素。
+kdd文件结构如下：
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/bkd5.png" height="100" width="900"/>
+
 
 ## 构建kdm和kdi文件
-当对所有元素进行排序后，开始存储BKD树的每个子节点和叶子节点，接着进入到：
+当对所有元素进行排序后，开始存储BKD树的每个子节点和叶子节点，会进入到：
 ```
  private void writeIndex(IndexOutput metaOut, IndexOutput indexOut, int countPerLeaf, BKDTreeLeafNodes leafNodes, long dataStartFP) throws IOException {
     byte[] packedIndex = packIndex(leafNodes);
@@ -515,7 +534,7 @@ BKDWriter函数就是构建BKD数的核心类， 需要继续进入BKDWriter.wri
 1.在`packIndex`中压缩存储BKD树子节点和叶子节点。
 2.在`writeIndex`中存储压缩后的数据，及BKD元数据。
 
-###压缩转存BKD树
+### 压缩转存BKD树
 压缩BKD转存的核心函数是`recursePackIndex`，采用递归的方式转存，以中序遍历的方式对BKD树进行处理，首先先存储中间飞叶子的信息，然后再分别对左右叶子节点进行处理:
 ```
   // 到了叶子节点
@@ -527,7 +546,8 @@ BKDWriter函数就是构建BKD数的核心类， 需要继续进入BKDWriter.wri
         writeBuffer.writeVLong(delta);
         return appendBlock(writeBuffer, blocks);
       }
-    } else { // 不是叶子节点
+      // 不是叶子节点
+    } else { 
       long leftBlockFP;
       if (isLeft) {
         // 若是左子树，leftBlockFP就是父节点的minBlockFP
@@ -543,8 +563,8 @@ BKDWriter函数就是构建BKD数的核心类， 需要继续进入BKDWriter.wri
       int numLeftLeafNodes = getNumLeftLeafNodes(numLeaves);
       final int rightOffset = leavesOffset + numLeftLeafNodes;
       final int splitOffset = rightOffset - 1;
-      // 和构建时一样
-      int splitDim = leafNodes.getSplitDimension(splitOffset);// 是以哪个维度切分的，然后address指向下一个位置（value值）
+      // 和构建时一样，是以哪个维度切分的，然后address指向下一个位置（value值）
+      int splitDim = leafNodes.getSplitDimension(splitOffset);
       BytesRef splitValue = leafNodes.getSplitValue(splitOffset);// 这个维度切分时的值
       int address = splitValue.offset;
 
@@ -557,34 +577,30 @@ BKDWriter函数就是构建BKD数的核心类， 需要继续进入BKDWriter.wri
         prefix = bytesPerDim;
       }
 
-      //System.out.println("writeNodeData nodeID=" + nodeID + " splitDim=" + splitDim + " numDims=" + numDims + " bytesPerDim=" + bytesPerDim + " prefix=" + prefix);
-
       int firstDiffByteDelta;
       if (prefix < bytesPerDim) { // 两次切分的值是不同的
         //System.out.println("  delta byte cur=" + Integer.toHexString(splitPackedValues[address+prefix]&0xFF) + " prev=" + Integer.toHexString(lastSplitValues[splitDim * bytesPerDim + prefix]&0xFF) + " negated?=" + negativeDeltas[splitDim]);
         firstDiffByteDelta = (splitValue.bytes[address+prefix]&0xFF) - (lastSplitValues[splitDim * bytesPerDim + prefix]&0xFF);
-        if (negativeDeltas[splitDim]) {// 第二次作为切分阶度，那么就开始获取diff
-          firstDiffByteDelta = -firstDiffByteDelta; // 取相反数
+        // 第二次作为切分阶度，那么就开始获取diff
+        if (negativeDeltas[splitDim]) {
+           // 取相反数
+          firstDiffByteDelta = -firstDiffByteDelta; 
         }
-        //System.out.println("  delta=" + firstDiffByteDelta);
-        assert firstDiffByteDelta > 0; // 递增的
+        assert firstDiffByteDelta > 0; 
       } else {
         firstDiffByteDelta = 0;
       }
       // 将prefix、splitDim和firstDiffByteDelta打包编码到同一个vint中，也很容易解码出来。见BKDReader.readNodeData()中287行编码
       // pack the prefix, splitDim and delta first diff byte into a single vInt:
       int code = (firstDiffByteDelta * (1+bytesPerDim) + prefix) * numIndexDims + splitDim;
-      //
-      //System.out.println("  code=" + code);
-      //System.out.println("  splitValue=" + new BytesRef(splitPackedValues, address, bytesPerDim));
-
       writeBuffer.writeVInt(code);
 
       // write the split value, prefix coded vs. our parent's split value:
       int suffix = bytesPerDim - prefix;
       byte[] savSplitValue = new byte[suffix];
       if (suffix > 1) {// 不完全一样
-        writeBuffer.writeBytes(splitValue.bytes, address+prefix+1, suffix-1);// 把这个split分词的那个词后半段存储起来
+        // 把这个split分词的那个词后半段存储起来
+        writeBuffer.writeBytes(splitValue.bytes, address+prefix+1, suffix-1);
       }
 
       byte[] cmp = lastSplitValues.clone(); // 不再是同一个对象
@@ -593,8 +609,8 @@ BKDWriter函数就是构建BKD数的核心类， 需要继续进入BKDWriter.wri
       // 将splitPackedValues中该不相同的后缀copy，放到lastSplitValues对应的位置
       // copy our split value into lastSplitValues for our children to prefix-code against
       System.arraycopy(splitValue.bytes, address+prefix, lastSplitValues, splitDim * bytesPerDim + prefix, suffix);
-      // 将writeBuffer存储的值，以[]byte方式放入blocks中
-      int numBytes = appendBlock(writeBuffer, blocks); // 放的code，词的后半缀
+      // 将writeBuffer存储的值，以[]byte方式放入blocks中，放的code，词的后半缀
+      int numBytes = appendBlock(writeBuffer, blocks); 
 
       // placeholder for left-tree numBytes; we need this so that at search time if we only need to recurse into the right sub-tree we can
       // quickly seek to its starting point
@@ -604,18 +620,15 @@ BKDWriter函数就是构建BKD数的核心类， 需要继续进入BKDWriter.wri
       // 若我们以splitDim维度进行了切分，那么之后再次在维度
       boolean savNegativeDelta = negativeDeltas[splitDim];
       negativeDeltas[splitDim] = true;
-
-
       int leftNumBytes = recursePackIndex(writeBuffer, leafNodes, leftBlockFP, blocks, lastSplitValues, negativeDeltas, true,
               leavesOffset, numLeftLeafNodes);
-
       if (numLeftLeafNodes != 1) {
         writeBuffer.writeVInt(leftNumBytes);
       } else { // 最左边的那个叶子节点
         assert leftNumBytes == 0: "leftNumBytes=" + leftNumBytes;
       }
-
-      int numBytes2 = Math.toIntExact(writeBuffer.getFilePointer()); // 存储的leftNumBytes的长度
+       // 存储的leftNumBytes的长度
+      int numBytes2 = Math.toIntExact(writeBuffer.getFilePointer());
       byte[] bytes2 = new byte[numBytes2];
       writeBuffer.writeTo(bytes2, 0);
       writeBuffer.reset();
@@ -625,25 +638,24 @@ BKDWriter函数就是构建BKD数的核心类， 需要继续进入BKDWriter.wri
       negativeDeltas[splitDim] = false;// 置位
       int rightNumBytes = recursePackIndex(writeBuffer,  leafNodes, leftBlockFP, blocks, lastSplitValues, negativeDeltas, false,
               rightOffset, numLeaves - numLeftLeafNodes);
-
-      negativeDeltas[splitDim] = savNegativeDelta; // 这里会复位
-
+      // 这里会复位
+      negativeDeltas[splitDim] = savNegativeDelta; 
       // restore lastSplitValues to what caller originally passed us:
-      System.arraycopy(savSplitValue, 0, lastSplitValues, splitDim * bytesPerDim + prefix, suffix); // 再放回去
-
-
-      return numBytes + bytes2.length + leftNumBytes + rightNumBytes;// 当前非叶子节点存储使用的空间，分中+左右占用
+      // 再放回去
+      System.arraycopy(savSplitValue, 0, lastSplitValues, splitDim * bytesPerDim + prefix, suffix); 
+      // 当前非叶子节点存储使用的空间，分中+左右占用
+      return numBytes + bytes2.length + leftNumBytes + rightNumBytes;
     }
 ```
-按照中序遍历的方式存储，比如处理node1节点
-<img src="https://kkewwei.github.io/elasticsearch_learning/img/bkd4.png" height="350" width="350"/>
+按照中序遍历的方式存储，比如处理node1节点:
+<img src="https://kkewwei.github.io/elasticsearch_learning/img/bkd4.png" height="550" width="570"/>
 其中：
 deltaFP：leftBlockFP - minBlockFP，minBlockFP是父节点最左边的子节点，leftBlockFP是该节点的子节点。
-code: (firstDiffByteDelta * (1+bytesPerDim) + prefix) * numIndexDims + splitDim，firstDiffByteDelta是当前节点拆分节点维度的值-该维度上一个相同维度切分的值，这里采用了编码，使之存储三个数值。
+code: (firstDiffByteDelta * (1+bytesPerDim) + prefix) * numIndexDims + splitDim，firstDiffByteDelta是当前节点切分维度的value-该相同维度上一个父节点切分的value。这里采用了编码，使之存储三个数值。
 最终，BKD树存储在了数组blocks中。
 
 ### 存储bkm和bki文件
-调用在`BKDWriter.writeIndex`文件中，bki文件存储了blocks的二进制数。而bkm文件存储了BKD树的元数据信息：
+在`BKDWriter.writeIndex`文件中，bki文件存储了blocks的二进制数，而bkm文件存储了BKD树的元数据信息：
 ```
  private void writeIndex(IndexOutput metaOut, IndexOutput indexOut, int countPerLeaf, int numLeaves, byte[] packedIndex, long dataStartFP) throws IOException {
      // dim文件写入
@@ -673,4 +685,4 @@ code: (firstDiffByteDelta * (1+bytesPerDim) + prefix) * numIndexDims + splitDim�
 ```
 
 # 总结
-BKD树主要运用在范围多维查找，在空间上，按照完全二叉树，将数据分为左右两部分，在max-min最大的维度，按照左子树该维度的值完全小于该维度中间值，右子树该维度的值完全小于该维度中间的值。通过范围查找，能够快速定位出docId。
+BKD树主要运用在范围多维查找，在空间上，按照完全二叉树结构，将数据分为左右两部分，找到所有元素每个维度[min,max]差距最大的维度，在该维度按照照左子树完全小于中间值，右子树完全大于间的值。通过范围查找，能够快速定位出docId。
