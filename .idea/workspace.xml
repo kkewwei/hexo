@@ -2,10 +2,7 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="7c88cf5c-44c0-48f6-9477-df34fe45af18" name="Default" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/db.json" beforeDir="false" afterPath="$PROJECT_DIR$/db.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/source/_posts/Lucene8-6-2底层架构-BKW树构建过程.md" beforeDir="false" afterPath="$PROJECT_DIR$/source/_posts/Lucene8-6-2底层架构-BKW树构建过程.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/source/图片xml/BKDWriter.drawio" beforeDir="false" afterPath="$PROJECT_DIR$/source/图片xml/BKDWriter.drawio" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/themes/Anisina" beforeDir="false" afterPath="$PROJECT_DIR$/themes/Anisina" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/themes/Anisina/_config.yml" beforeDir="false" afterPath="$PROJECT_DIR$/themes/Anisina/_config.yml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/themes/snippet" beforeDir="false" afterPath="$PROJECT_DIR$/themes/snippet" afterDir="false" />
@@ -49,8 +46,8 @@
         <entry file="file://$PROJECT_DIR$/source/_posts/Lucene8-6-2底层架构-BKW树构建过程.md">
           <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
             <state split_layout="SPLIT">
-              <first_editor relative-caret-position="353">
-                <caret line="521" column="82" lean-forward="true" selection-start-line="521" selection-start-column="82" selection-end-line="521" selection-end-column="82" />
+              <first_editor relative-caret-position="398">
+                <caret line="524" column="14" selection-start-line="524" selection-start-column="14" selection-end-line="524" selection-end-column="14" />
               </first_editor>
               <second_editor />
             </state>
@@ -438,7 +435,6 @@
   </component>
   <component name="ToolWindowManager">
     <frame x="39" y="23" width="1440" height="810" extended-state="0" />
-    <editor active="true" />
     <layout>
       <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.18383405" />
       <window_info id="Structure" order="1" weight="0.24821173" />
@@ -449,10 +445,10 @@
       <window_info anchor="bottom" id="Debug" order="3" weight="0.4" />
       <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
       <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
-      <window_info anchor="bottom" id="Event Log" order="6" sideWeight="0.5171674" side_tool="true" visible="true" weight="0.1977716" />
+      <window_info active="true" anchor="bottom" id="Event Log" order="6" sideWeight="0.5171674" side_tool="true" visible="true" weight="0.1977716" />
       <window_info anchor="bottom" id="Python Console" order="7" weight="0.32853025" />
       <window_info anchor="bottom" id="Version Control" order="8" sideWeight="0.49713877" weight="0.32564843" />
-      <window_info active="true" anchor="bottom" id="Terminal" order="9" sideWeight="0.4828326" visible="true" weight="0.1977716" />
+      <window_info anchor="bottom" id="Terminal" order="9" sideWeight="0.4828326" visible="true" weight="0.1977716" />
       <window_info anchor="bottom" id="TODO" order="10" sideWeight="0.48354793" weight="0.3264402" />
       <window_info anchor="bottom" id="Log Viewer" order="11" />
       <window_info anchor="bottom" id="SOQL Query" order="12" />
@@ -630,8 +626,8 @@
     <entry file="file://$PROJECT_DIR$/source/_posts/Lucene8-6-2底层架构-BKW树构建过程.md">
       <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
         <state split_layout="SPLIT">
-          <first_editor relative-caret-position="353">
-            <caret line="521" column="82" lean-forward="true" selection-start-line="521" selection-start-column="82" selection-end-line="521" selection-end-column="82" />
+          <first_editor relative-caret-position="398">
+            <caret line="524" column="14" selection-start-line="524" selection-start-column="14" selection-end-line="524" selection-end-column="14" />
           </first_editor>
           <second_editor />
         </state>
