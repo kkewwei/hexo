@@ -2,7 +2,13 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="7c88cf5c-44c0-48f6-9477-df34fe45af18" name="Default" comment="">
+      <change beforePath="$PROJECT_DIR$/.deploy_git" beforeDir="false" afterPath="$PROJECT_DIR$/.deploy_git" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/db.json" beforeDir="false" afterPath="$PROJECT_DIR$/db.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/_posts/Lucene8-6-2底层架构-BKW树构建过程.md" beforeDir="false" afterPath="$PROJECT_DIR$/source/_posts/Lucene8-6-2底层架构-BKW树构建过程.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/图片xml/BKDWriter.drawio" beforeDir="false" afterPath="$PROJECT_DIR$/source/图片xml/BKDWriter.drawio" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/图片xml/Index_create.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/图片xml/bulk_index_all.xml" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/themes/Anisina" beforeDir="false" afterPath="$PROJECT_DIR$/themes/Anisina" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/themes/Anisina/_config.yml" beforeDir="false" afterPath="$PROJECT_DIR$/themes/Anisina/_config.yml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/themes/snippet" beforeDir="false" afterPath="$PROJECT_DIR$/themes/snippet" afterDir="false" />
@@ -46,8 +52,8 @@
         <entry file="file://$PROJECT_DIR$/source/_posts/Lucene8-6-2底层架构-BKW树构建过程.md">
           <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
             <state split_layout="SPLIT">
-              <first_editor relative-caret-position="398">
-                <caret line="524" column="14" selection-start-line="524" selection-start-column="14" selection-end-line="524" selection-end-column="14" />
+              <first_editor relative-caret-position="454">
+                <caret line="580" selection-start-line="580" selection-end-line="580" />
               </first_editor>
               <second_editor />
             </state>
@@ -55,21 +61,11 @@
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/source/_posts/ES段合并源码分析.md">
+        <entry file="file://$PROJECT_DIR$/source/_posts/Lucene8-2-0底层架构-tim-tip词典结构原理研究.md">
           <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
-            <state split_layout="SPLIT">
-              <first_editor />
-              <second_editor />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/source/_posts/Lucene8-2-0底层架构-ByteBlockPool结构分析.md">
-          <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
-            <state split_layout="SPLIT">
-              <first_editor relative-caret-position="1770">
-                <caret line="118" column="4" selection-start-line="118" selection-start-column="4" selection-end-line="118" selection-end-column="4" />
+            <state split_layout="FIRST">
+              <first_editor relative-caret-position="4290">
+                <caret line="286" column="31" selection-start-line="286" selection-end-line="287" />
               </first_editor>
               <second_editor />
             </state>
@@ -77,7 +73,19 @@
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/source/_posts/Flink原理-Akka通信模块.md">
+        <entry file="file://$PROJECT_DIR$/source/_posts/ReentrantLock源码解读.md">
+          <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
+            <state split_layout="SPLIT">
+              <first_editor relative-caret-position="3420">
+                <caret line="228" column="10" selection-start-line="228" selection-start-column="10" selection-end-line="228" selection-end-column="10" />
+              </first_editor>
+              <second_editor />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/source/_posts/NioEventLoop篇.md">
           <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
             <state split_layout="SPLIT">
               <first_editor />
@@ -87,10 +95,12 @@
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/source/_posts/Flink原理-Container启动命令内存参数分析.md">
+        <entry file="file://$PROJECT_DIR$/source/_posts/ConcurrentHashMap扩容过程介绍.md">
           <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
             <state split_layout="SPLIT">
-              <first_editor />
+              <first_editor relative-caret-position="210">
+                <caret line="14" column="72" selection-start-line="14" selection-start-column="72" selection-end-line="14" selection-end-column="72" />
+              </first_editor>
               <second_editor />
             </state>
           </provider>
@@ -175,6 +185,8 @@
       <find>bkd1.png</find>
       <find>dim</find>
       <find>bkd2</find>
+      <find>bkd4</find>
+      <find>ref</find>
     </findStrings>
   </component>
   <component name="Git.Settings">
@@ -258,10 +270,9 @@
     </packageJsonPaths>
   </component>
   <component name="ProjectFrameBounds">
-    <option name="x" value="39" />
     <option name="y" value="23" />
-    <option name="width" value="1440" />
-    <option name="height" value="810" />
+    <option name="width" value="1536" />
+    <option name="height" value="843" />
   </component>
   <component name="ProjectLevelVcsManager" settingsEditedManually="true">
     <ConfirmationsSetting value="1" id="Add" />
@@ -288,12 +299,6 @@
               <item name="hexo1" type="462c0819:PsiDirectoryNode" />
               <item name="source" type="462c0819:PsiDirectoryNode" />
               <item name="_posts" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="hexo1" type="b2602c69:ProjectViewProjectNode" />
-              <item name="hexo1" type="462c0819:PsiDirectoryNode" />
-              <item name="source" type="462c0819:PsiDirectoryNode" />
-              <item name="img" type="462c0819:PsiDirectoryNode" />
             </path>
           </expand>
           <select />
@@ -434,9 +439,9 @@
     </todo-panel>
   </component>
   <component name="ToolWindowManager">
-    <frame x="39" y="23" width="1440" height="810" extended-state="0" />
+    <frame x="0" y="23" width="1536" height="843" extended-state="6" />
     <layout>
-      <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.18383405" />
+      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.27108434" />
       <window_info id="Structure" order="1" weight="0.24821173" />
       <window_info id="Favorites" order="2" side_tool="true" />
       <window_info anchor="bottom" id="Message" order="0" />
@@ -445,10 +450,10 @@
       <window_info anchor="bottom" id="Debug" order="3" weight="0.4" />
       <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
       <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
-      <window_info active="true" anchor="bottom" id="Event Log" order="6" sideWeight="0.5171674" side_tool="true" visible="true" weight="0.1977716" />
+      <window_info anchor="bottom" id="Event Log" order="6" sideWeight="0.521419" side_tool="true" visible="true" weight="0.18908122" />
       <window_info anchor="bottom" id="Python Console" order="7" weight="0.32853025" />
       <window_info anchor="bottom" id="Version Control" order="8" sideWeight="0.49713877" weight="0.32564843" />
-      <window_info anchor="bottom" id="Terminal" order="9" sideWeight="0.4828326" visible="true" weight="0.1977716" />
+      <window_info anchor="bottom" id="Terminal" order="9" sideWeight="0.47858098" visible="true" weight="0.18908122" />
       <window_info anchor="bottom" id="TODO" order="10" sideWeight="0.48354793" weight="0.3264402" />
       <window_info anchor="bottom" id="Log Viewer" order="11" />
       <window_info anchor="bottom" id="SOQL Query" order="12" />
@@ -592,16 +597,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/source/_posts/Lucene8-2-0底层架构-tim-tip词典结构原理研究.md">
-      <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
-        <state split_layout="FIRST">
-          <first_editor relative-caret-position="4290">
-            <caret line="286" column="31" selection-start-line="286" selection-end-line="287" />
-          </first_editor>
-          <second_editor />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/source/_posts/Lucene8-2-0底层架构-词典fst原理解析.md">
       <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
         <state split_layout="SPLIT">
@@ -622,16 +617,6 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/themes/yilia/layout/_partial/header.ejs">
       <provider selected="true" editor-type-id="text-editor" />
-    </entry>
-    <entry file="file://$PROJECT_DIR$/source/_posts/Lucene8-6-2底层架构-BKW树构建过程.md">
-      <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
-        <state split_layout="SPLIT">
-          <first_editor relative-caret-position="398">
-            <caret line="524" column="14" selection-start-line="524" selection-start-column="14" selection-end-line="524" selection-end-column="14" />
-          </first_editor>
-          <second_editor />
-        </state>
-      </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/source/_posts/ES段合并源码分析.md">
       <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
@@ -663,6 +648,69 @@
       <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
         <state split_layout="SPLIT">
           <first_editor />
+          <second_editor />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/source/img/bkd3.png">
+      <provider selected="true" editor-type-id="images" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/source/img/bkd2.png">
+      <provider selected="true" editor-type-id="images" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/source/img/bkd1.png">
+      <provider selected="true" editor-type-id="images" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/source/img/bkd5.png">
+      <provider selected="true" editor-type-id="images" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/source/img/bkd4.png">
+      <provider selected="true" editor-type-id="images" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/source/_posts/Lucene8-6-2底层架构-BKW树构建过程.md">
+      <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
+        <state split_layout="SPLIT">
+          <first_editor relative-caret-position="454">
+            <caret line="580" selection-start-line="580" selection-end-line="580" />
+          </first_editor>
+          <second_editor />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/source/_posts/Lucene8-2-0底层架构-tim-tip词典结构原理研究.md">
+      <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
+        <state split_layout="FIRST">
+          <first_editor relative-caret-position="4290">
+            <caret line="286" column="31" selection-start-line="286" selection-end-line="287" />
+          </first_editor>
+          <second_editor />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/source/_posts/ReentrantLock源码解读.md">
+      <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
+        <state split_layout="SPLIT">
+          <first_editor relative-caret-position="3420">
+            <caret line="228" column="10" selection-start-line="228" selection-start-column="10" selection-end-line="228" selection-end-column="10" />
+          </first_editor>
+          <second_editor />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/source/_posts/NioEventLoop篇.md">
+      <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
+        <state split_layout="SPLIT">
+          <first_editor />
+          <second_editor />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/source/_posts/ConcurrentHashMap扩容过程介绍.md">
+      <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
+        <state split_layout="SPLIT">
+          <first_editor relative-caret-position="210">
+            <caret line="14" column="72" selection-start-line="14" selection-start-column="72" selection-end-line="14" selection-end-column="72" />
+          </first_editor>
           <second_editor />
         </state>
       </provider>

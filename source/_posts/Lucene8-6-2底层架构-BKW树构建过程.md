@@ -485,7 +485,6 @@ BKDWriter函数就是构建BKD数的核心类， 需要继续进入BKDWriter.wri
         // 获取from->to之间的文档Id
         docIDs[i - from] = reader.getDocID(i); 
       }
-      //System.out.println("writeLeafBlock pos=" + out.getFilePointer());
        // 把文档Id给存储起来了
       writeLeafBlockDocs(scratchOut, docIDs, 0, count); 
       // 存储相同的前缀
@@ -568,7 +567,6 @@ kdd文件结构如下：
       BytesRef splitValue = leafNodes.getSplitValue(splitOffset);// 这个维度切分时的值
       int address = splitValue.offset;
 
-      //System.out.println("recursePack inner nodeID=" + nodeID + " splitDim=" + splitDim + " splitValue=" + new BytesRef(splitPackedValues, address, bytesPerDim));
        // 查找切分的那个值和之前切分之间的之间相同的前缀
       // find common prefix with last split value in this dim:
       int prefix = FutureArrays.mismatch(splitValue.bytes, address, address + bytesPerDim, lastSplitValues,
@@ -579,7 +577,6 @@ kdd文件结构如下：
 
       int firstDiffByteDelta;
       if (prefix < bytesPerDim) { // 两次切分的值是不同的
-        //System.out.println("  delta byte cur=" + Integer.toHexString(splitPackedValues[address+prefix]&0xFF) + " prev=" + Integer.toHexString(lastSplitValues[splitDim * bytesPerDim + prefix]&0xFF) + " negated?=" + negativeDeltas[splitDim]);
         firstDiffByteDelta = (splitValue.bytes[address+prefix]&0xFF) - (lastSplitValues[splitDim * bytesPerDim + prefix]&0xFF);
         // 第二次作为切分阶度，那么就开始获取diff
         if (negativeDeltas[splitDim]) {
@@ -655,7 +652,7 @@ code: (firstDiffByteDelta * (1+bytesPerDim) + prefix) * numIndexDims + splitDim�
 最终，BKD树存储在了数组blocks中。
 
 ### 存储bkm和bki文件
-在`BKDWriter.writeIndex`文件中，bki文件存储了blocks的二进制数，而bkm文件存储了BKD树的元数据信息：
+在`BKDWriter.writeIndex`文件中，bki文件存储了bkd树转存后的blocks的二进制数，而bkm文件存储了BKD树的元数据信息：
 ```
  private void writeIndex(IndexOutput metaOut, IndexOutput indexOut, int countPerLeaf, int numLeaves, byte[] packedIndex, long dataStartFP) throws IOException {
      // dim文件写入
